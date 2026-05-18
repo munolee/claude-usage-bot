@@ -5,7 +5,7 @@ how much of your **Claude Code 5-hour session** you've used — as a tiny pixel
 mascot that **evolves through six forms** as your usage climbs.
 
 <p align="center">
-  <img src="docs/stages/evolution.png" alt="Evolution stages" width="640" />
+  <img width="135" height="119" alt="image" src="https://github.com/user-attachments/assets/a7793c9f-bb1a-4a9e-8bb6-67e579c73641" />
 </p>
 
 > Pure local — reads `~/.claude/projects/**/*.jsonl` directly. No API key, no
