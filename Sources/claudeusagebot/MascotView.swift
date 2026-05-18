@@ -69,20 +69,6 @@ final class MascotView: NSView {
             "......X..X......"
         ],
         .growth: [
-            "................",
-            "................",
-            "................",
-            "....XXXXXXXX....",
-            "..XXXXXXXXXXXX..",
-            ".XXXXXXXXXXXXXX.",
-            ".XXXoXXXXXXoXXX.",
-            ".XXXoXXXXXXoXXX.",
-            ".XXXXXXXXXXXXXX.",
-            ".XXXXXXXXXXXXXX.",
-            "...X.X....X.X...",
-            "...X.X....X.X..."
-        ],
-        .mature: [
             "....XXXXXXXX....", // head top (8 wide)
             "....XXXXXXXX....",
             "....XoXXXXoX....", // head eyes (cols 5, 10)
@@ -92,9 +78,23 @@ final class MascotView: NSView {
             "..XXXXXXXXXXXX..", // body 12 wide
             "..XXXXXXXXXXXX..",
             "..XXXXXXXXXXXX..",
-            "..XXXXXXXXXXXX..", // body 4 rows tall — substantially bigger
+            "..XXXXXXXXXXXX..",
             "...X..X..X..X...", // 4 evenly-spaced legs (cols 3, 6, 9, 12)
             "...X..X..X..X..."
+        ],
+        .mature: [
+            "................",
+            ".X............X.", // 2 horns rise above the chubby body
+            ".X............X.",
+            "....XXXXXXXX....", // narrow top (8 wide)
+            "..XXXXXXXXXXXX..", // shoulders (12 wide)
+            ".XXXXXXXXXXXXXX.", // widest (14 wide)
+            ".XXXoXXXXXXoXXX.", // eyes (cols 4, 11)
+            ".XXXoXXXXXXoXXX.",
+            ".XXXXXXXXXXXXXX.",
+            ".XXXXXXXXXXXXXX.",
+            "...X.X....X.X...", // 4 legs (cols 3, 5, 10, 12)
+            "...X.X....X.X..."
         ],
         .perfect: [
             "................",
