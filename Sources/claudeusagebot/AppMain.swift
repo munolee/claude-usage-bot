@@ -9,6 +9,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var overlay: OverlayController!
     private var poller: UsagePoller!
+    private var stagePreview = StagePreview()
     private var statusItem: NSStatusItem?
     private var isPaused = false
     private var budgetUSD: Double = defaultBudgetUSD
@@ -131,6 +132,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         resetPos.target = self
         menu.addItem(resetPos)
 
+        let previewStages = NSMenuItem(title: "전체 모습 보기", action: #selector(showAllStages), keyEquivalent: "")
+        previewStages.target = self
+        menu.addItem(previewStages)
+
         let calibrate = NSMenuItem(
             title: "Claude Code 값에 맞춰 보정…",
             action: #selector(calibrateBudget),
@@ -177,6 +182,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resetPosition() {
         overlay.resetPosition()
+    }
+
+    @objc private func showAllStages() {
+        stagePreview.show()
     }
 
     /// One-shot calibration: user enters the % they see in Claude Code's /usage and we
