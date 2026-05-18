@@ -4,20 +4,31 @@ import ClaudeUsageCore
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let sessionBudgetKey = "sessionBudgetUSD"
+    private static let autoShowKey = "autoShowOnActivity"
     private static let defaultBudgetUSD: Double = 100
     private static let budgetChoices: [Double] = [20, 50, 100, 200, 500, 1000]
 
     private var overlay: OverlayController!
     private var poller: UsagePoller!
+    private var watcher: TranscriptWatcher!
     private var statusItem: NSStatusItem?
     private var isPaused = false
     private var budgetUSD: Double = defaultBudgetUSD
+    private var autoShowOnActivity = true
+    /// Latest assistant-message timestamp we've already announced. Seeded from the
+    /// first snapshot so we don't fire for the backlog the user has already seen.
+    private var lastSeenActivity: Date?
+    private var hasSeededActivity = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let saved = UserDefaults.standard.double(forKey: Self.sessionBudgetKey)
+        let defaults = UserDefaults.standard
+        let saved = defaults.double(forKey: Self.sessionBudgetKey)
         if saved > 0 { budgetUSD = saved }
+        if defaults.object(forKey: Self.autoShowKey) != nil {
+            autoShowOnActivity = defaults.bool(forKey: Self.autoShowKey)
+        }
 
         overlay = OverlayController()
         overlay.onMascotClick = { [weak self] in self?.handleMascotClick() }
@@ -26,6 +37,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         poller = UsagePoller(interval: 30)
         poller.onUpdate = { [weak self] snapshot in self?.handleSnapshot(snapshot) }
         poller.start()
+
+        watcher = TranscriptWatcher(root: UsageReader.defaultRoot)
+        watcher.onActivity = { [weak self] in self?.poller.refreshNow() }
+        watcher.start()
 
         createStatusItem()
     }
@@ -44,6 +59,20 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         overlay.updateMood(mood)
         rebuildStatusMenu()
+
+        // Detect a new assistant turn and pop the bubble automatically.
+        let latest = snapshot.summary.latestActivity
+        if !hasSeededActivity {
+            hasSeededActivity = true
+            lastSeenActivity = latest
+            return
+        }
+        guard let latest, latest != lastSeenActivity else { return }
+        let previous = lastSeenActivity
+        lastSeenActivity = latest
+        if autoShowOnActivity, !isPaused, (previous.map { latest > $0 } ?? true) {
+            overlay.showBubble(bubbleText(for: snapshot), autoHideAfter: 4)
+        }
     }
 
     private func handleMascotClick() {
@@ -135,6 +164,15 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         pause.target = self
         menu.addItem(pause)
 
+        let autoShow = NSMenuItem(
+            title: "활동 시 자동 표시",
+            action: #selector(toggleAutoShow),
+            keyEquivalent: ""
+        )
+        autoShow.target = self
+        autoShow.state = autoShowOnActivity ? .on : .off
+        menu.addItem(autoShow)
+
         let resetPos = NSMenuItem(title: "위치 초기화", action: #selector(resetPosition), keyEquivalent: "")
         resetPos.target = self
         menu.addItem(resetPos)
@@ -180,6 +218,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func togglePause() {
         isPaused.toggle()
         overlay.setHidden(isPaused)
+        rebuildStatusMenu()
+    }
+
+    @objc private func toggleAutoShow() {
+        autoShowOnActivity.toggle()
+        UserDefaults.standard.set(autoShowOnActivity, forKey: Self.autoShowKey)
         rebuildStatusMenu()
     }
 
