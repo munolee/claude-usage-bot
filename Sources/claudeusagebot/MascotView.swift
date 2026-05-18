@@ -83,16 +83,16 @@ final class MascotView: NSView {
         .mature: [
             "................",
             "................",
-            "................",
-            "..XXXXXXXXXXXX..", // body adopts perfect's 12-wide rectangle
-            "..XXoXXXXXXoXX..", // eyes at perfect's positions (cols 4, 11)
-            "..XXoXXXXXXoXX..",
+            ".....XXXXXX.....", // small 6-wide head crown
+            "....XXXXXXXX....", // head widens to 8
+            "....XoXXXXoX....", // head eyes (cols 5, 10)
+            "....XoXXXXoX....",
+            "....XXXXXXXX....", // head bottom
+            "...XXXXXXXXXX...", // neck/shoulders widen
+            "..XXXXXXXXXXXX..", // body 12 wide
             "..XXXXXXXXXXXX..",
-            ".XXXXXXXXXXXXXX.", // arms only starting — 14 wide (vs perfect's 16)
-            ".XXXXXXXXXXXXXX.",
-            "..XXXXXXXXXXXX..",
-            "..X.X......X.X..", // 4 legs at perfect's positions
-            "..X.X......X.X.."
+            "...X..X..X..X...", // 4 evenly-spaced legs (cols 3, 6, 9, 12)
+            "...X..X..X..X..."
         ],
         .perfect: [
             "................",
@@ -109,17 +109,17 @@ final class MascotView: NSView {
             "................"
         ],
         .ultimate: [
-            ".X.X........X.X.", // 4 horn tips (2 left, 2 right)
-            ".X.X........X.X.", // horn shafts
-            "..XXXXXXXXXXXX..", // perfect's 12-wide body, intact
-            "..XXoXXXXXXoXX..", // same eyes as perfect
+            ".X.X........X.X.", // 4 horn tips poking above the pauldrons
+            "XXXX........XXXX", // shoulder pauldrons start
+            "XXXXX......XXXXX", // pauldrons widen, merging into body
+            "..XXXXXXXXXXXX..", // perfect's 12-wide body
+            "..XXoXXXXXXoXX..", // eyes (same as perfect)
             "..XXoXXXXXXoXX..",
             "..XXXXXXXXXXXX..",
-            "XXXXXXXXXXXXXXXX", // full 16-wide arm band (kept from perfect)
+            "XXXXXXXXXXXXXXXX", // arm band (kept from perfect)
             "XXXXXXXXXXXXXXXX",
             "..XXXXXXXXXXXX..",
-            "..XXXXXXXXXXXX..", // body extended one row taller than perfect
-            "..X.X.X..X.X.X..", // 6 legs (perfect had 4)
+            "..X.X.X..X.X.X..", // 6 legs (vs perfect's 4)
             "..X.X.X..X.X.X.."
         ]
     ]
