@@ -30,8 +30,8 @@ final class SpeechBubbleView: NSView {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 2
         return [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .foregroundColor: NSColor.white,
             .paragraphStyle: paragraph
         ]
     }()
@@ -60,15 +60,15 @@ final class SpeechBubbleView: NSView {
         path.line(to: NSPoint(x: tailCenterX + Self.tailWidth / 2, y: tailY))
         path.close()
 
-        // Fill + subtle shadow
+        // Fill + soft drop shadow
         ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -1), blur: 4, color: NSColor.black.withAlphaComponent(0.18).cgColor)
-        NSColor(calibratedWhite: 1.0, alpha: 0.96).setFill()
+        ctx.setShadow(offset: CGSize(width: 0, height: -1), blur: 4, color: NSColor.black.withAlphaComponent(0.35).cgColor)
+        NSColor(calibratedWhite: 0.08, alpha: 0.95).setFill()
         path.fill()
         ctx.restoreGState()
 
-        // Hairline border
-        NSColor.black.withAlphaComponent(0.08).setStroke()
+        // Hairline border for definition against dark backgrounds
+        NSColor.white.withAlphaComponent(0.08).setStroke()
         path.lineWidth = 0.5
         path.stroke()
 

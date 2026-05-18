@@ -4,7 +4,8 @@ import ClaudeUsageCore
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let sessionBudgetKey = "sessionBudgetUSD"
-    private static let defaultBudgetUSD: Double = 20
+    private static let defaultBudgetUSD: Double = 100
+    private static let budgetChoices: [Double] = [20, 50, 100, 200, 500, 1000]
 
     private var overlay: OverlayController!
     private var poller: UsagePoller!
@@ -31,7 +32,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleSnapshot(_ snapshot: UsageSnapshot) {
         let mood: MascotView.Mood
         if let session = snapshot.session {
-            switch session.usageFraction(budgetUSD: budgetUSD) {
+            // Mood clamps at the upper threshold; bubble shows the true %.
+            switch min(1.0, session.usageFraction(budgetUSD: budgetUSD)) {
             case ..<0.5:  mood = .calm
             case ..<0.85: mood = .busy
             default:      mood = .alarmed
@@ -138,7 +140,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         // Budget submenu
         let budgetItem = NSMenuItem(title: "세션 한도: \(formatBudget())", action: nil, keyEquivalent: "")
         let budgetMenu = NSMenu()
-        for choice in [5.0, 10.0, 20.0, 40.0, 100.0] {
+        for choice in Self.budgetChoices {
             let entry = NSMenuItem(title: "$\(Int(choice))", action: #selector(setBudget(_:)), keyEquivalent: "")
             entry.target = self
             entry.representedObject = choice

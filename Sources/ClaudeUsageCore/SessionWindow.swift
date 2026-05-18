@@ -25,10 +25,10 @@ public struct SessionWindow: Equatable, Sendable {
         now < expiresAt
     }
 
-    /// 0...1, clamped. Uses cost when a budget is provided.
+    /// Raw cost/budget ratio. Can exceed 1.0 — callers decide whether to clamp.
     public func usageFraction(budgetUSD: Double) -> Double {
         guard budgetUSD > 0 else { return 0 }
-        return min(1, max(0, usageUSD / budgetUSD))
+        return max(0, usageUSD / budgetUSD)
     }
 }
 
