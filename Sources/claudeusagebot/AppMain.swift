@@ -4,6 +4,7 @@ import ClaudeUsageCore
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let sessionBudgetKey = "sessionBudgetUSD"
+    private static let resetExpiresOverrideKey = "resetExpiresOverride"
     private static let defaultBudgetUSD: Double = 100
     private static let budgetChoices: [Double] = [20, 50, 100, 200, 500, 1000]
 
@@ -13,12 +14,24 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var isPaused = false
     private var budgetUSD: Double = defaultBudgetUSD
+    /// Absolute Date when the user said the session resets. Overrides the auto-detected
+    /// session.expiresAt for display. Auto-cleared once the time passes.
+    private var resetExpiresOverride: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let saved = UserDefaults.standard.double(forKey: Self.sessionBudgetKey)
+        let defaults = UserDefaults.standard
+        let saved = defaults.double(forKey: Self.sessionBudgetKey)
         if saved > 0 { budgetUSD = saved }
+        if let overrideTS = defaults.object(forKey: Self.resetExpiresOverrideKey) as? TimeInterval {
+            let date = Date(timeIntervalSince1970: overrideTS)
+            if date > Date() {
+                resetExpiresOverride = date
+            } else {
+                defaults.removeObject(forKey: Self.resetExpiresOverrideKey)
+            }
+        }
 
         overlay = OverlayController()
         overlay.onMascotClick = { [weak self] in self?.poller.refreshNow() }
@@ -50,8 +63,20 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             return "활성 세션 없음"
         }
         let pct = Int((session.usageFraction(budgetUSD: budgetUSD) * 100).rounded())
-        let remainder = session.remaining(from: Date())
-        return "\(pct)%  ·  \(formatRemaining(remainder))"
+        return "\(pct)%  ·  \(formatRemaining(displayedRemaining(for: session)))"
+    }
+
+    /// Returns the remaining time we should display. Honors a manual override if it's
+    /// still in the future, otherwise falls back to the session's auto-detected expiry.
+    /// Auto-clears stale overrides.
+    private func displayedRemaining(for session: SessionWindow) -> TimeInterval {
+        let now = Date()
+        if let override = resetExpiresOverride {
+            if override > now { return override.timeIntervalSince(now) }
+            resetExpiresOverride = nil
+            UserDefaults.standard.removeObject(forKey: Self.resetExpiresOverrideKey)
+        }
+        return session.remaining(from: now)
     }
 
     /// 7320 → "2h 2m", 2700 → "45m", 0 → "0m".
@@ -102,7 +127,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             let pct = Int((fraction * 100).rounded())
             let stage = EvolutionStage.stage(forFraction: fraction, hasActiveSession: true)
             let header = NSMenuItem(
-                title: "\(stage.label) · \(pct)% · \(formatRemaining(session.remaining(from: Date())))",
+                title: "\(stage.label) · \(pct)% · \(formatRemaining(displayedRemaining(for: session)))",
                 action: nil,
                 keyEquivalent: ""
             )
@@ -201,23 +226,86 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let alert = NSAlert()
         alert.messageText = "Claude Code 값에 맞춰 보정"
-        alert.informativeText = "지금 Claude Code의 /usage 가 보여주는 사용률(%)을 입력하세요. 이 값에 맞도록 세션 한도가 자동 계산됩니다."
-        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
-        input.placeholderString = "예: 30"
-        alert.accessoryView = input
+        alert.informativeText = "지금 Claude Code의 /usage 에 보이는 사용률과 남은 시간을 입력하세요. 둘 다 선택사항이며, 입력한 항목만 보정됩니다."
+
+        // Stacked accessory view: percent field on top, remaining-time field below.
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 70))
+        let pctLabel = NSTextField(labelWithString: "사용률 (%)")
+        pctLabel.frame = NSRect(x: 0, y: 44, width: 80, height: 18)
+        pctLabel.font = .systemFont(ofSize: 11)
+        container.addSubview(pctLabel)
+        let pctInput = NSTextField(frame: NSRect(x: 90, y: 42, width: 160, height: 22))
+        pctInput.placeholderString = "예: 30"
+        container.addSubview(pctInput)
+
+        let timeLabel = NSTextField(labelWithString: "남은 시간")
+        timeLabel.frame = NSRect(x: 0, y: 8, width: 80, height: 18)
+        timeLabel.font = .systemFont(ofSize: 11)
+        container.addSubview(timeLabel)
+        let timeInput = NSTextField(frame: NSRect(x: 90, y: 6, width: 160, height: 22))
+        timeInput.placeholderString = "예: 2h 30m, 또는 2:30"
+        container.addSubview(timeInput)
+
+        alert.accessoryView = container
         alert.addButton(withTitle: "보정")
         alert.addButton(withTitle: "취소")
         NSApp.activate(ignoringOtherApps: true)
-        input.becomeFirstResponder()
+        pctInput.becomeFirstResponder()
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let raw = input.stringValue.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "%", with: "")
-        guard let pct = Double(raw), pct > 0 else { return }
 
-        let newBudget = session.usageUSD / (pct / 100)
-        budgetUSD = newBudget
-        UserDefaults.standard.set(newBudget, forKey: Self.sessionBudgetKey)
+        // Percent (optional)
+        let rawPct = pctInput.stringValue.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "%", with: "")
+        if let pct = Double(rawPct), pct > 0 {
+            let newBudget = session.usageUSD / (pct / 100)
+            budgetUSD = newBudget
+            UserDefaults.standard.set(newBudget, forKey: Self.sessionBudgetKey)
+        }
+
+        // Remaining time (optional)
+        let rawTime = timeInput.stringValue.trimmingCharacters(in: .whitespaces)
+        if let seconds = parseDuration(rawTime), seconds > 0 {
+            let expires = Date().addingTimeInterval(seconds)
+            resetExpiresOverride = expires
+            UserDefaults.standard.set(expires.timeIntervalSince1970, forKey: Self.resetExpiresOverrideKey)
+        }
+
         if let snapshot = poller.lastSnapshot { handleSnapshot(snapshot) }
+    }
+
+    /// Parses "2h 30m", "2:30", "1h", "45m", "150" (minutes) into seconds. Returns nil on failure.
+    private func parseDuration(_ raw: String) -> TimeInterval? {
+        guard !raw.isEmpty else { return nil }
+        // "2:30" form
+        if raw.contains(":") {
+            let parts = raw.split(separator: ":")
+            guard parts.count == 2,
+                  let h = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+                  let m = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return nil }
+            return TimeInterval(h * 3600 + m * 60)
+        }
+        // "2h 30m" / "2h" / "30m" form
+        var total: TimeInterval = 0
+        var matched = false
+        let scanner = Scanner(string: raw.lowercased())
+        scanner.charactersToBeSkipped = .whitespaces
+        while !scanner.isAtEnd {
+            guard let n = scanner.scanInt() else { break }
+            if scanner.scanString("h") != nil {
+                total += TimeInterval(n * 3600)
+                matched = true
+            } else if scanner.scanString("m") != nil {
+                total += TimeInterval(n * 60)
+                matched = true
+            } else if scanner.isAtEnd {
+                // Bare number → assume minutes
+                total += TimeInterval(n * 60)
+                matched = true
+            } else {
+                return nil
+            }
+        }
+        return matched ? total : nil
     }
 
     @objc private func setBudget(_ sender: NSMenuItem) {
