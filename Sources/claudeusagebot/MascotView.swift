@@ -98,7 +98,7 @@ final class MascotView: NSView {
         ],
         .perfect: [
             "................",
-            "................",
+            "..XXXXXXXXXXXX..", // extra crown row on top of the head
             "..XXXXXXXXXXXX..",
             "..XXoXXXXXXoXX..",
             "..XXoXXXXXXoXX..",
