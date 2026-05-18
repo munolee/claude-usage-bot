@@ -28,6 +28,9 @@ final class OverlayController {
     private var mascotAnchor: NSPoint
 
     var onMascotClick: (() -> Void)?
+    var menuProvider: (() -> NSMenu?)? {
+        didSet { mascot.menuProvider = menuProvider }
+    }
 
     init() {
         let initialRect = NSRect(x: 0, y: 0, width: 280, height: 200)

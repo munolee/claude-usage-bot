@@ -11,6 +11,14 @@ final class MascotView: NSView {
     var onClick: (() -> Void)?
     var onDrag: ((NSPoint) -> Void)?
     var onDragEnd: (() -> Void)?
+    /// Returns the menu to show on right-click / control-click. AppKit calls this
+    /// automatically for every "show context menu" gesture, so we don't need to
+    /// implement rightMouseDown ourselves.
+    var menuProvider: (() -> NSMenu?)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        menuProvider?()
+    }
 
     private var dragLastScreenLocation: NSPoint?
     private var dragAccumulated: CGFloat = 0

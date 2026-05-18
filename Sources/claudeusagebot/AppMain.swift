@@ -21,6 +21,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
         overlay = OverlayController()
         overlay.onMascotClick = { [weak self] in self?.handleMascotClick() }
+        overlay.menuProvider = { [weak self] in self?.buildMenu() }
 
         poller = UsagePoller(interval: 30)
         poller.onUpdate = { [weak self] snapshot in self?.handleSnapshot(snapshot) }
@@ -97,7 +98,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func rebuildStatusMenu() {
-        guard let statusItem else { return }
+        statusItem?.menu = buildMenu()
+    }
+
+    /// The single source of truth for the app's menu. Shared by the status item and
+    /// the right-click / control-click context menu on the mascot.
+    fileprivate func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
         if let session = poller.lastSnapshot?.session {
@@ -155,7 +161,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         quit.target = self
         menu.addItem(quit)
 
-        statusItem.menu = menu
+        return menu
     }
 
     private func formatBudget() -> String {
