@@ -84,9 +84,9 @@ final class MascotView: NSView {
         ],
         .mature: [
             "................",
-            ".X............X.", // 2 horns rise above the chubby body
-            ".X............X.",
-            "....XXXXXXXX....", // narrow top (8 wide)
+            ".....X....X.....", // horns rise from inside the narrow head top
+            ".....X....X.....", // so they sit directly on the body — not floating
+            "....XXXXXXXX....", // narrow top (8 wide) — cols 5 and 10 catch the horns
             "..XXXXXXXXXXXX..", // shoulders (12 wide)
             ".XXXXXXXXXXXXXX.", // widest (14 wide)
             ".XXXoXXXXXXoXXX.", // eyes (cols 4, 11)
