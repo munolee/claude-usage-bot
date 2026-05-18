@@ -32,7 +32,20 @@ The menu bar item exposes:
 - 위치 초기화 — return the mascot to the bottom-right default
 - Quit (`⌘Q`)
 
-## Build the App Bundle
+## Install (recommended)
+
+One-shot: builds a release `.app`, replaces any copy in `/Applications`,
+and restarts the running instance.
+
+```sh
+./scripts/install.sh
+```
+
+After installing, launch from Spotlight (`⌘Space → ClaudeUsageBot`),
+Launchpad, or Finder. To start at login: **System Settings → General →
+Login Items**, then add `/Applications/ClaudeUsageBot.app`.
+
+## Build the App Bundle Only
 
 ```sh
 ./scripts/package-app.sh

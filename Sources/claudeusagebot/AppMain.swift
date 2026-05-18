@@ -123,10 +123,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(.separator())
         }
 
-        let show = NSMenuItem(title: "지금 보여줘", action: #selector(showNow), keyEquivalent: "s")
-        show.target = self
-        menu.addItem(show)
-
         let refresh = NSMenuItem(title: "새로고침", action: #selector(refresh), keyEquivalent: "r")
         refresh.target = self
         menu.addItem(refresh)
@@ -175,10 +171,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func formatBudget() -> String {
         budgetUSD == floor(budgetUSD) ? "$\(Int(budgetUSD))" : String(format: "$%.2f", budgetUSD)
-    }
-
-    @objc private func showNow() {
-        handleMascotClick()
     }
 
     @objc private func refresh() {
