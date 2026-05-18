@@ -29,22 +29,28 @@ final class MascotView: NSView {
     static let canvasCols = 16
     static let canvasRows = 12
 
-    // X = body, o = eye/speckle (cream), . = transparent. Each row is exactly 16 chars,
-    // and every sprite has exactly 12 rows so layout cells line up across stages.
+    // Cell legend:
+    //   .  transparent
+    //   X  body orange
+    //   o  eye cream (also doubles as speckle on orange forms)
+    //   W  eggshell cream-white (egg only)
+    //   s  orange speckle on the egg (same color as body X)
+    // Each row is exactly 16 chars, and every sprite has exactly 12 rows so layout cells
+    // line up across stages.
     private static let sprites: [EvolutionStage: [String]] = [
         .egg: [
             "................",
-            "......XXXX......",
-            ".....XXXXXX.....",
-            "....XXXXXXXX....",
-            "....XXoXXoXX....",
-            "....XXXXXXXX....",
-            "....XoXXXXoX....",
-            "....XXXXXXXX....",
-            "....XXoXXoXX....",
-            "....XXXXXXXX....",
-            ".....XXXXXX.....",
-            "......XXXX......"
+            "......WWWW......",
+            ".....WWWWWW.....",
+            "....WWWWWWWW....",
+            "....WWsWWsWW....",
+            "....WWWWWWWW....",
+            "....WsWWWWsW....",
+            "....WWWWWWWW....",
+            "....WWsWWsWW....",
+            "....WWWWWWWW....",
+            ".....WWWWWW.....",
+            "......WWWW......"
         ],
         .baby: [
             "................",
@@ -125,6 +131,7 @@ final class MascotView: NSView {
 
         let bodyColor = NSColor(calibratedRed: 0.85, green: 0.48, blue: 0.36, alpha: 1) // salmon-orange
         let eyeColor = NSColor(calibratedRed: 0.97, green: 0.87, blue: 0.78, alpha: 1) // cream
+        let eggshell = NSColor(calibratedRed: 0.97, green: 0.94, blue: 0.88, alpha: 1) // warm off-white
 
         // Blink only when the sprite actually has eyes (eggs don't).
         let eyesOpen = blinkPhase < 0.5
@@ -147,6 +154,8 @@ final class MascotView: NSView {
                 switch ch {
                 case "X": color = bodyColor
                 case "o": color = activeEyeColor
+                case "W": color = eggshell
+                case "s": color = bodyColor
                 default:  color = nil
                 }
                 guard let color else { continue }
