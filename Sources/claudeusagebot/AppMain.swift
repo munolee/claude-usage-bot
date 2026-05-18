@@ -3,75 +3,71 @@ import ClaudeUsageCore
 
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let sessionBudgetKey = "sessionBudgetUSD"
+    private static let defaultBudgetUSD: Double = 20
+
     private var overlay: OverlayController!
     private var poller: UsagePoller!
     private var statusItem: NSStatusItem?
     private var isPaused = false
+    private var budgetUSD: Double = defaultBudgetUSD
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        let saved = UserDefaults.standard.double(forKey: Self.sessionBudgetKey)
+        if saved > 0 { budgetUSD = saved }
 
         overlay = OverlayController()
         overlay.onMascotClick = { [weak self] in self?.handleMascotClick() }
 
         poller = UsagePoller(interval: 30)
-        poller.onUpdate = { [weak self] summary in self?.handleSummary(summary) }
+        poller.onUpdate = { [weak self] snapshot in self?.handleSnapshot(snapshot) }
         poller.start()
 
         createStatusItem()
     }
 
-    private func handleSummary(_ summary: UsageSummary) {
-        let total = summary.today.totalTokens
+    private func handleSnapshot(_ snapshot: UsageSnapshot) {
         let mood: MascotView.Mood
-        switch total {
-        case ..<200_000:     mood = .calm
-        case ..<1_000_000:   mood = .busy
-        default:             mood = .alarmed
+        if let session = snapshot.session {
+            switch session.usageFraction(budgetUSD: budgetUSD) {
+            case ..<0.5:  mood = .calm
+            case ..<0.85: mood = .busy
+            default:      mood = .alarmed
+            }
+        } else {
+            mood = .calm
         }
         overlay.updateMood(mood)
         rebuildStatusMenu()
     }
 
     private func handleMascotClick() {
-        guard let summary = poller.lastSummary else {
-            overlay.showBubble("아직 사용량을 읽고 있어요…")
+        guard let snapshot = poller.lastSnapshot else {
+            overlay.showBubble("…")
             return
         }
-        overlay.showBubble(bubbleText(for: summary))
+        overlay.showBubble(bubbleText(for: snapshot))
     }
 
-    private func bubbleText(for summary: UsageSummary) -> String {
-        let today = summary.today
-        let total = UsageFormatter.compact(today.totalTokens)
-        let cost = UsageFormatter.usd(today.estimatedCostUSD)
-        let header = "오늘 \(total) tokens · \(cost)"
-
-        let topModels = summary.perModelToday
-            .sorted { $0.value.totalTokens > $1.value.totalTokens }
-            .prefix(2)
-            .map { (model, totals) in "· \(shortModelName(model)): \(UsageFormatter.compact(totals.totalTokens))" }
-
-        if topModels.isEmpty {
-            return "\(header)\n오늘 아직 사용 기록이 없어요."
+    private func bubbleText(for snapshot: UsageSnapshot) -> String {
+        guard let session = snapshot.session else {
+            return "활성 세션 없음"
         }
-        return ([header] + topModels).joined(separator: "\n")
+        let pct = Int((session.usageFraction(budgetUSD: budgetUSD) * 100).rounded())
+        let remainder = session.remaining(from: Date())
+        return "\(pct)%  ·  \(formatRemaining(remainder))"
     }
 
-    /// "claude-sonnet-4-6" → "Sonnet 4.6"
-    private func shortModelName(_ model: String) -> String {
-        let lower = model.lowercased()
-        let family: String
-        if lower.contains("opus") { family = "Opus" }
-        else if lower.contains("sonnet") { family = "Sonnet" }
-        else if lower.contains("haiku") { family = "Haiku" }
-        else { return model }
-        // Extract first version-looking chunk (e.g., "4-6" or "4-5")
-        let pattern = #/(\d+)-(\d+)/#
-        if let match = model.firstMatch(of: pattern) {
-            return "\(family) \(match.1).\(match.2)"
-        }
-        return family
+    /// 7320 → "2h 2m", 2700 → "45m", 0 → "0m".
+    private func formatRemaining(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded(.up)))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours > 0 && minutes > 0 { return "\(hours)h \(minutes)m" }
+        if hours > 0 { return "\(hours)h" }
+        return "\(minutes)m"
     }
 
     // MARK: - Status menu
@@ -102,22 +98,20 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let statusItem else { return }
         let menu = NSMenu()
 
-        if let summary = poller.lastSummary {
+        if let session = poller.lastSnapshot?.session {
+            let pct = Int((session.usageFraction(budgetUSD: budgetUSD) * 100).rounded())
             let header = NSMenuItem(
-                title: "오늘 \(UsageFormatter.compact(summary.today.totalTokens)) tokens · \(UsageFormatter.usd(summary.today.estimatedCostUSD))",
+                title: "\(pct)% · \(formatRemaining(session.remaining(from: Date())))",
                 action: nil,
                 keyEquivalent: ""
             )
             header.isEnabled = false
             menu.addItem(header)
-
-            let week = NSMenuItem(
-                title: "최근 7일 \(UsageFormatter.compact(summary.last7Days.totalTokens)) · \(UsageFormatter.usd(summary.last7Days.estimatedCostUSD))",
-                action: nil,
-                keyEquivalent: ""
-            )
-            week.isEnabled = false
-            menu.addItem(week)
+            menu.addItem(.separator())
+        } else {
+            let none = NSMenuItem(title: "활성 세션 없음", action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            menu.addItem(none)
             menu.addItem(.separator())
         }
 
@@ -141,12 +135,29 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         resetPos.target = self
         menu.addItem(resetPos)
 
+        // Budget submenu
+        let budgetItem = NSMenuItem(title: "세션 한도: \(formatBudget())", action: nil, keyEquivalent: "")
+        let budgetMenu = NSMenu()
+        for choice in [5.0, 10.0, 20.0, 40.0, 100.0] {
+            let entry = NSMenuItem(title: "$\(Int(choice))", action: #selector(setBudget(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = choice
+            entry.state = abs(choice - budgetUSD) < 0.001 ? .on : .off
+            budgetMenu.addItem(entry)
+        }
+        budgetItem.submenu = budgetMenu
+        menu.addItem(budgetItem)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
         statusItem.menu = menu
+    }
+
+    private func formatBudget() -> String {
+        budgetUSD == floor(budgetUSD) ? "$\(Int(budgetUSD))" : String(format: "$%.2f", budgetUSD)
     }
 
     @objc private func showNow() {
@@ -165,6 +176,13 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resetPosition() {
         overlay.resetPosition()
+    }
+
+    @objc private func setBudget(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? Double else { return }
+        budgetUSD = value
+        UserDefaults.standard.set(value, forKey: Self.sessionBudgetKey)
+        if let snapshot = poller.lastSnapshot { handleSnapshot(snapshot) }
     }
 
     @objc private func quit() {

@@ -1,7 +1,7 @@
 import AppKit
 
-/// Small pixel-art Claude mascot — a round head with antenna and friendly eyes.
-/// Drawn programmatically; no asset files needed.
+/// Pixel-art mascot. Drawn from a string grid with anti-aliasing off so cells stay crisp.
+/// Click vs. drag is disambiguated by total mouse travel; the parent controller moves the panel.
 final class MascotView: NSView {
     enum Mood { case calm, busy, alarmed }
 
@@ -9,7 +9,6 @@ final class MascotView: NSView {
     var blinkPhase: CGFloat = 0 { didSet { needsDisplay = true } }
 
     var onClick: (() -> Void)?
-    /// Called repeatedly while the user drags the mascot. Delta is in screen points.
     var onDrag: ((NSPoint) -> Void)?
     var onDragEnd: (() -> Void)?
 
@@ -19,72 +18,70 @@ final class MascotView: NSView {
 
     override var isFlipped: Bool { true }
 
+    // X = body, o = eye, . = transparent.
+    // 14 columns × 9 rows. Flat-topped body with side bumps mid-row, two cream eyes,
+    // four short leg stubs hanging from the bottom.
+    private static let sprite: [String] = [
+        "...XXXXXXXX...",
+        ".XXXXXXXXXXXX.",
+        "XXXXXXXXXXXXXX",
+        "XXXooXXXXooXXX",
+        "XXXooXXXXooXXX",
+        "XXXXXXXXXXXXXX",
+        "XXXXXXXXXXXXXX",
+        "..X.X....X.X..",
+        "..X.X....X.X.."
+    ]
+    private static var cols: Int { sprite[0].count }
+    private static var rows: Int { sprite.count }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        ctx.setShouldAntialias(true)
+        ctx.setShouldAntialias(false)
+        ctx.interpolationQuality = .none
 
-        let bodyRect = bounds.insetBy(dx: 4, dy: 4)
         let bodyColor: NSColor
         switch mood {
-        case .calm:    bodyColor = NSColor(calibratedRed: 0.85, green: 0.55, blue: 0.32, alpha: 1) // Claude orange-ish
-        case .busy:    bodyColor = NSColor(calibratedRed: 0.95, green: 0.75, blue: 0.30, alpha: 1)
-        case .alarmed: bodyColor = NSColor(calibratedRed: 0.92, green: 0.35, blue: 0.30, alpha: 1)
+        case .calm:    bodyColor = NSColor(calibratedRed: 0.85, green: 0.48, blue: 0.36, alpha: 1) // salmon-orange
+        case .busy:    bodyColor = NSColor(calibratedRed: 0.91, green: 0.60, blue: 0.27, alpha: 1) // warm amber
+        case .alarmed: bodyColor = NSColor(calibratedRed: 0.79, green: 0.32, blue: 0.29, alpha: 1) // muted red
         }
+        let eyeColor = NSColor(calibratedRed: 0.97, green: 0.87, blue: 0.78, alpha: 1)
 
-        // Soft drop shadow
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 6, color: NSColor.black.withAlphaComponent(0.25).cgColor)
+        // Eyes close on blink — fall back to body color so the cells "fill in".
+        let eyesOpen = blinkPhase < 0.5
+        let activeEyeColor = eyesOpen ? eyeColor : bodyColor
 
-        // Body (rounded square)
-        let path = NSBezierPath(roundedRect: bodyRect, xRadius: bodyRect.width / 2.6, yRadius: bodyRect.height / 2.6)
-        bodyColor.setFill()
-        path.fill()
-        ctx.restoreGState()
+        let cell = floor(min(bounds.width / CGFloat(Self.cols), bounds.height / CGFloat(Self.rows)))
+        guard cell > 0 else { return }
+        let drawW = cell * CGFloat(Self.cols)
+        let drawH = cell * CGFloat(Self.rows)
+        // Center horizontally; pin to bottom so the legs sit on the panel's bottom edge.
+        let originX = floor((bounds.width - drawW) / 2)
+        let originY = floor(bounds.height - drawH)
 
-        // Antenna
-        NSColor.black.withAlphaComponent(0.6).setStroke()
-        let antenna = NSBezierPath()
-        antenna.lineWidth = 1.5
-        antenna.move(to: NSPoint(x: bounds.midX, y: bodyRect.minY))
-        antenna.line(to: NSPoint(x: bounds.midX, y: bodyRect.minY - 6))
-        antenna.stroke()
-        NSColor.white.setFill()
-        let bulb = NSBezierPath(ovalIn: NSRect(x: bounds.midX - 2.5, y: bodyRect.minY - 9, width: 5, height: 5))
-        bulb.fill()
-        NSColor.black.withAlphaComponent(0.5).setStroke()
-        bulb.lineWidth = 0.8
-        bulb.stroke()
-
-        // Eyes (blink shrinks the vertical radius)
-        let eyeOpen: CGFloat = max(0.15, 1.0 - blinkPhase)
-        let eyeW: CGFloat = bodyRect.width * 0.14
-        let eyeH: CGFloat = bodyRect.height * 0.18 * eyeOpen
-        let eyeY = bodyRect.minY + bodyRect.height * 0.42 - eyeH / 2
-        let leftX = bodyRect.minX + bodyRect.width * 0.32 - eyeW / 2
-        let rightX = bodyRect.minX + bodyRect.width * 0.68 - eyeW / 2
-        NSColor.black.withAlphaComponent(0.85).setFill()
-        NSBezierPath(ovalIn: NSRect(x: leftX, y: eyeY, width: eyeW, height: eyeH)).fill()
-        NSBezierPath(ovalIn: NSRect(x: rightX, y: eyeY, width: eyeW, height: eyeH)).fill()
-
-        // Mouth — small smile, frown when alarmed
-        let mouth = NSBezierPath()
-        mouth.lineWidth = 1.5
-        NSColor.black.withAlphaComponent(0.7).setStroke()
-        let mouthY = bodyRect.minY + bodyRect.height * 0.66
-        let mouthW: CGFloat = bodyRect.width * 0.22
-        if mood == .alarmed {
-            mouth.move(to: NSPoint(x: bounds.midX - mouthW / 2, y: mouthY + 2))
-            mouth.curve(to: NSPoint(x: bounds.midX + mouthW / 2, y: mouthY + 2),
-                        controlPoint1: NSPoint(x: bounds.midX, y: mouthY - 2),
-                        controlPoint2: NSPoint(x: bounds.midX, y: mouthY - 2))
-        } else {
-            mouth.move(to: NSPoint(x: bounds.midX - mouthW / 2, y: mouthY))
-            mouth.curve(to: NSPoint(x: bounds.midX + mouthW / 2, y: mouthY),
-                        controlPoint1: NSPoint(x: bounds.midX, y: mouthY + 4),
-                        controlPoint2: NSPoint(x: bounds.midX, y: mouthY + 4))
+        for (rowIdx, row) in Self.sprite.enumerated() {
+            for (colIdx, ch) in row.enumerated() {
+                let color: NSColor?
+                switch ch {
+                case "X": color = bodyColor
+                case "o": color = activeEyeColor
+                default:  color = nil
+                }
+                guard let color else { continue }
+                color.setFill()
+                let rect = NSRect(
+                    x: originX + CGFloat(colIdx) * cell,
+                    y: originY + CGFloat(rowIdx) * cell,
+                    width: cell,
+                    height: cell
+                )
+                rect.fill()
+            }
         }
-        mouth.stroke()
     }
+
+    // MARK: - Mouse handling
 
     override func mouseDown(with event: NSEvent) {
         dragLastScreenLocation = NSEvent.mouseLocation

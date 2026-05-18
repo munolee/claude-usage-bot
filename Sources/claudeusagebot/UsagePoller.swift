@@ -5,15 +5,20 @@ import ClaudeUsageCore
 ///
 /// Scanning is done on a background queue so the main run loop stays responsive even when
 /// transcripts have grown large. The completion is hopped back to the main actor.
+struct UsageSnapshot: Sendable {
+    let summary: UsageSummary
+    let session: SessionWindow?
+}
+
 @MainActor
 final class UsagePoller {
     private let interval: TimeInterval
     private let root: URL
     private var timer: Timer?
     private let queue = DispatchQueue(label: "ClaudeUsageBot.UsagePoller", qos: .utility)
-    private(set) var lastSummary: UsageSummary?
+    private(set) var lastSnapshot: UsageSnapshot?
 
-    var onUpdate: ((UsageSummary) -> Void)?
+    var onUpdate: ((UsageSnapshot) -> Void)?
 
     init(interval: TimeInterval = 30, root: URL = UsageReader.defaultRoot) {
         self.interval = interval
@@ -46,9 +51,11 @@ final class UsagePoller {
                 }
             }
             let summary = UsageAggregator.summarize(records: allRecords)
+            let session = SessionDetector.currentSession(records: allRecords)
+            let snapshot = UsageSnapshot(summary: summary, session: session)
             Task { @MainActor in
-                self?.lastSummary = summary
-                self?.onUpdate?(summary)
+                self?.lastSnapshot = snapshot
+                self?.onUpdate?(snapshot)
             }
         }
     }

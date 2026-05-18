@@ -10,7 +10,9 @@ final class OverlayController {
     private static let anchorXKey = "mascotAnchorX"
     private static let anchorYKey = "mascotAnchorY"
 
-    private let mascotSize: CGFloat = 56
+    // Mascot sprite is 14 cols × 9 rows. Cell size 5pt → 70×45pt frame.
+    private let mascotWidth: CGFloat = 70
+    private let mascotHeight: CGFloat = 45
     private let maxBubbleWidth: CGFloat = 240
     private let defaultMargin: CGFloat = 24
     private let mascotBubbleGap: CGFloat = 6
@@ -53,10 +55,10 @@ final class OverlayController {
         bubble.isHidden = true
         container.addSubview(bubble)
 
-        mascot = MascotView(frame: NSRect(x: 0, y: 0, width: mascotSize, height: mascotSize))
+        mascot = MascotView(frame: NSRect(x: 0, y: 0, width: mascotWidth, height: mascotHeight))
         container.addSubview(mascot)
 
-        mascotAnchor = Self.loadAnchor() ?? Self.defaultAnchor(mascotSize: mascotSize, margin: defaultMargin)
+        mascotAnchor = Self.loadAnchor() ?? Self.defaultAnchor(mascotWidth: mascotWidth, margin: defaultMargin)
 
         mascot.onClick = { [weak self] in self?.onMascotClick?() }
         mascot.onDrag = { [weak self] delta in self?.moveAnchor(by: delta) }
@@ -96,7 +98,7 @@ final class OverlayController {
 
     /// Move the mascot back to the bottom-right default and forget the saved position.
     func resetPosition() {
-        mascotAnchor = Self.defaultAnchor(mascotSize: mascotSize, margin: defaultMargin)
+        mascotAnchor = Self.defaultAnchor(mascotWidth: mascotWidth, margin: defaultMargin)
         UserDefaults.standard.removeObject(forKey: Self.anchorXKey)
         UserDefaults.standard.removeObject(forKey: Self.anchorYKey)
         relayout()
@@ -122,15 +124,15 @@ final class OverlayController {
         guard let screen = screenContaining(mascotCenter()) ?? NSScreen.main else { return }
         let v = screen.visibleFrame
         let minX = v.minX + screenEdgePadding
-        let maxX = v.maxX - mascotSize - screenEdgePadding
+        let maxX = v.maxX - mascotWidth - screenEdgePadding
         let minY = v.minY + screenEdgePadding
-        let maxY = v.maxY - mascotSize - screenEdgePadding
+        let maxY = v.maxY - mascotHeight - screenEdgePadding
         mascotAnchor.x = min(max(mascotAnchor.x, minX), maxX)
         mascotAnchor.y = min(max(mascotAnchor.y, minY), maxY)
     }
 
     private func mascotCenter() -> NSPoint {
-        NSPoint(x: mascotAnchor.x + mascotSize / 2, y: mascotAnchor.y + mascotSize / 2)
+        NSPoint(x: mascotAnchor.x + mascotWidth / 2, y: mascotAnchor.y + mascotHeight / 2)
     }
 
     private func screenContaining(_ point: NSPoint) -> NSScreen? {
@@ -153,7 +155,7 @@ final class OverlayController {
         // with its tail on the right (and vice versa). Keeps the bubble on-screen near edges.
         let screen = screenContaining(mascotCenter()) ?? NSScreen.main
         let visible = screen?.visibleFrame ?? .zero
-        let mascotMidX = mascotAnchor.x + mascotSize / 2
+        let mascotMidX = mascotAnchor.x + mascotWidth / 2
         let preferLeftExtension = mascotMidX > visible.midX
         let tailSide: SpeechBubbleView.TailSide = preferLeftExtension ? .right : .left
 
@@ -163,33 +165,33 @@ final class OverlayController {
         if bubbleSize.width > 0 {
             if preferLeftExtension {
                 // Bubble's right edge aligned with mascot's right edge.
-                let bubbleMinX = mascotAnchor.x + mascotSize - bubbleSize.width
+                let bubbleMinX = mascotAnchor.x + mascotWidth - bubbleSize.width
                 panelMinX = min(mascotAnchor.x, bubbleMinX)
-                panelWidth = (mascotAnchor.x + mascotSize) - panelMinX
+                panelWidth = (mascotAnchor.x + mascotWidth) - panelMinX
             } else {
                 // Bubble's left edge aligned with mascot's left edge.
                 let bubbleMaxX = mascotAnchor.x + bubbleSize.width
                 panelMinX = mascotAnchor.x
-                panelWidth = max(mascotSize, bubbleMaxX - panelMinX)
+                panelWidth = max(mascotWidth, bubbleMaxX - panelMinX)
             }
         } else {
             panelMinX = mascotAnchor.x
-            panelWidth = mascotSize
+            panelWidth = mascotWidth
         }
 
         let panelMinY = mascotAnchor.y
-        let panelHeight = mascotSize + (bubbleSize.height > 0 ? bubbleSize.height + mascotBubbleGap : 0)
+        let panelHeight = mascotHeight + (bubbleSize.height > 0 ? bubbleSize.height + mascotBubbleGap : 0)
 
         panel.setFrame(NSRect(x: panelMinX, y: panelMinY, width: panelWidth, height: panelHeight), display: true)
 
         // Place mascot at its anchor (converted to panel-local coords).
         let mascotLocalX = mascotAnchor.x - panelMinX
-        mascot.frame = NSRect(x: mascotLocalX, y: 0, width: mascotSize, height: mascotSize)
+        mascot.frame = NSRect(x: mascotLocalX, y: 0, width: mascotWidth, height: mascotHeight)
 
         if bubbleSize.width > 0 {
             let bubbleLocalX: CGFloat
             if preferLeftExtension {
-                bubbleLocalX = (mascotAnchor.x + mascotSize - bubbleSize.width) - panelMinX
+                bubbleLocalX = (mascotAnchor.x + mascotWidth - bubbleSize.width) - panelMinX
             } else {
                 bubbleLocalX = mascotAnchor.x - panelMinX
             }
@@ -201,12 +203,12 @@ final class OverlayController {
 
     // MARK: - Anchor defaults / persistence
 
-    private static func defaultAnchor(mascotSize: CGFloat, margin: CGFloat) -> NSPoint {
+    private static func defaultAnchor(mascotWidth: CGFloat, margin: CGFloat) -> NSPoint {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else {
             return NSPoint(x: margin, y: margin)
         }
         let v = screen.visibleFrame
-        return NSPoint(x: v.maxX - mascotSize - margin, y: v.minY + margin)
+        return NSPoint(x: v.maxX - mascotWidth - margin, y: v.minY + margin)
     }
 
     private static func loadAnchor() -> NSPoint? {
