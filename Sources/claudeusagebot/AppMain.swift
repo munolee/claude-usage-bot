@@ -143,6 +143,15 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         resetPos.target = self
         menu.addItem(resetPos)
 
+        let calibrate = NSMenuItem(
+            title: "Claude Code 값에 맞춰 보정…",
+            action: #selector(calibrateBudget),
+            keyEquivalent: ""
+        )
+        calibrate.target = self
+        calibrate.isEnabled = (poller.lastSnapshot?.session?.usageUSD ?? 0) > 0
+        menu.addItem(calibrate)
+
         // Budget submenu
         let budgetItem = NSMenuItem(title: "세션 한도: \(formatBudget())", action: nil, keyEquivalent: "")
         let budgetMenu = NSMenu()
@@ -184,6 +193,38 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resetPosition() {
         overlay.resetPosition()
+    }
+
+    /// One-shot calibration: user enters the % they see in Claude Code's /usage and we
+    /// back-solve the budget so future displays match. budget = currentCost / (pct/100).
+    @objc private func calibrateBudget() {
+        guard let session = poller.lastSnapshot?.session, session.usageUSD > 0 else {
+            let alert = NSAlert()
+            alert.messageText = "보정할 사용량이 없어요"
+            alert.informativeText = "활성 세션에 가격 정보가 있는 모델 메시지가 한 건 이상 있어야 보정이 가능합니다."
+            alert.runModal()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Claude Code 값에 맞춰 보정"
+        alert.informativeText = "지금 Claude Code의 /usage 가 보여주는 사용률(%)을 입력하세요. 이 값에 맞도록 세션 한도가 자동 계산됩니다."
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        input.placeholderString = "예: 30"
+        alert.accessoryView = input
+        alert.addButton(withTitle: "보정")
+        alert.addButton(withTitle: "취소")
+        NSApp.activate(ignoringOtherApps: true)
+        input.becomeFirstResponder()
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let raw = input.stringValue.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "%", with: "")
+        guard let pct = Double(raw), pct > 0 else { return }
+
+        let newBudget = session.usageUSD / (pct / 100)
+        budgetUSD = newBudget
+        UserDefaults.standard.set(newBudget, forKey: Self.sessionBudgetKey)
+        if let snapshot = poller.lastSnapshot { handleSnapshot(snapshot) }
     }
 
     @objc private func setBudget(_ sender: NSMenuItem) {
