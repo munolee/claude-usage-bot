@@ -32,9 +32,11 @@ final class MascotView: NSView {
     // Cell legend:
     //   .  transparent
     //   X  body orange
-    //   o  eye cream (also doubles as speckle on orange forms)
+    //   o  eye cream (closes during blink)
+    //   c  crystal cream (always-on cream, does not blink)
     //   W  eggshell cream-white (egg only)
     //   s  orange speckle on the egg (same color as body X)
+    //   g  dark grey wand shaft (ultimate only)
     // Each row is exactly 16 chars, and every sprite has exactly 12 rows so layout cells
     // line up across stages.
     private static let sprites: [EvolutionStage: [String]] = [
@@ -81,16 +83,16 @@ final class MascotView: NSView {
             "...X.X....X.X..."
         ],
         .mature: [
-            "................",
-            "................",
-            ".....XXXXXX.....", // small 6-wide head crown
-            "....XXXXXXXX....", // head widens to 8
+            "....XXXXXXXX....", // head top (8 wide)
+            "....XXXXXXXX....",
             "....XoXXXXoX....", // head eyes (cols 5, 10)
             "....XoXXXXoX....",
             "....XXXXXXXX....", // head bottom
-            "...XXXXXXXXXX...", // neck/shoulders widen
+            "...XXXXXXXXXX...", // neck/shoulder transition (10 wide)
             "..XXXXXXXXXXXX..", // body 12 wide
             "..XXXXXXXXXXXX..",
+            "..XXXXXXXXXXXX..",
+            "..XXXXXXXXXXXX..", // body 4 rows tall — substantially bigger
             "...X..X..X..X...", // 4 evenly-spaced legs (cols 3, 6, 9, 12)
             "...X..X..X..X..."
         ],
@@ -109,18 +111,18 @@ final class MascotView: NSView {
             "................"
         ],
         .ultimate: [
-            ".X.X........X.X.", // 4 horn tips poking above the pauldrons
-            "XXXX........XXXX", // shoulder pauldrons start
-            "XXXXX......XXXXX", // pauldrons widen, merging into body
-            "..XXXXXXXXXXXX..", // perfect's 12-wide body
-            "..XXoXXXXXXoXX..", // eyes (same as perfect)
-            "..XXoXXXXXXoXX..",
-            "..XXXXXXXXXXXX..",
-            "XXXXXXXXXXXXXXXX", // arm band (kept from perfect)
+            ".X.X..........cc", // 2 left horns + 2-cell glowing crystal (wand tip)
+            ".X.X..........cc",
+            "..XXXXXXXXXXXX.g", // body 12 wide + wand shaft on the right (col 15)
+            "..XXoXXXXXXoXX.g", // eyes (same positions as perfect)
+            "..XXoXXXXXXoXX.g",
+            "..XXXXXXXXXXXX.g",
+            "..XXXXXXXXXXXX.g", // wand shaft continues down to the right hand
+            "XXXXXXXXXXXXXXXX", // arm band (kept from perfect — right hand grips the wand)
             "XXXXXXXXXXXXXXXX",
             "..XXXXXXXXXXXX..",
-            "..X.X.X..X.X.X..", // 6 legs (vs perfect's 4)
-            "..X.X.X..X.X.X.."
+            "..X.X......X.X..", // 4 legs — matches perfect exactly
+            "..X.X......X.X.."
         ]
     ]
 
@@ -132,6 +134,7 @@ final class MascotView: NSView {
         let bodyColor = NSColor(calibratedRed: 0.85, green: 0.48, blue: 0.36, alpha: 1) // salmon-orange
         let eyeColor = NSColor(calibratedRed: 0.97, green: 0.87, blue: 0.78, alpha: 1) // cream
         let eggshell = NSColor(calibratedRed: 0.97, green: 0.94, blue: 0.88, alpha: 1) // warm off-white
+        let wandShaft = NSColor(calibratedWhite: 0.30, alpha: 1) // dark grey
 
         // Blink only when the sprite actually has eyes (eggs don't).
         let eyesOpen = blinkPhase < 0.5
@@ -154,8 +157,10 @@ final class MascotView: NSView {
                 switch ch {
                 case "X": color = bodyColor
                 case "o": color = activeEyeColor
+                case "c": color = eyeColor          // crystal never blinks
                 case "W": color = eggshell
                 case "s": color = bodyColor
+                case "g": color = wandShaft
                 default:  color = nil
                 }
                 guard let color else { continue }
