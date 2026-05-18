@@ -46,8 +46,8 @@ final class MascotView: NSView {
             "....WWssWWsW....", // 2x2 blob (left, row 1) + L tail (right)
             "....WWssWWWW....", // 2x2 blob (left, row 2)
             "....WWWWWWWW....",
-            "....WsWWWWWW....", // tiny single speckle, middle-left
-            "....WWWWWssW....", // 2x2 blob (right, row 1)
+            "....sssWWWWW....", // 3x2 blob anchored to the left edge, row 1
+            "....sssWWssW....", // 3x2 blob row 2 + 2x2 blob (right, row 1)
             "....WWWWWssW....", // 2x2 blob (right, row 2)
             ".....WWWWWW.....",
             "......WWWW......"
@@ -95,18 +95,18 @@ final class MascotView: NSView {
             "...X.X....X.X..."
         ],
         .perfect: [
-            ".X............X.",
-            ".X............X.",
-            "....XXXXXXXX....",
+            "................",
+            "................",
             "..XXXXXXXXXXXX..",
-            "X.XXXXXXXXXXXX.X",
+            "..XXoXXXXXXoXX..",
+            "..XXoXXXXXXoXX..",
+            "..XXXXXXXXXXXX..",
             "XXXXXXXXXXXXXXXX",
-            "XXXXooXXXXooXXXX",
-            "XXXXooXXXXooXXXX",
             "XXXXXXXXXXXXXXXX",
-            ".XXXXXXXXXXXXXX.",
-            ".XXXXXXXXXXXXXX.",
-            "...X.X....X.X..."
+            "..XXXXXXXXXXXX..",
+            "..X.X......X.X..",
+            "..X.X......X.X..",
+            "................"
         ],
         .ultimate: [
             ".X.X........X.X.",
