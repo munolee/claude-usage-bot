@@ -59,8 +59,8 @@ final class MascotView: NSView {
             "................",
             ".....XXXXXX.....",
             "....XXXXXXXX....",
-            "....XooXXooX....",
-            "....XooXXooX....",
+            "....XoXXXXoX....",
+            "....XoXXXXoX....",
             "....XXXXXXXX....",
             ".....XXXXXX.....",
             "......X..X......",
@@ -82,17 +82,17 @@ final class MascotView: NSView {
         ],
         .mature: [
             "................",
-            ".X............X.",
-            ".X............X.",
-            "....XXXXXXXX....",
+            "................",
+            "................",
+            "..XXXXXXXXXXXX..", // body adopts perfect's 12-wide rectangle
+            "..XXoXXXXXXoXX..", // eyes at perfect's positions (cols 4, 11)
+            "..XXoXXXXXXoXX..",
             "..XXXXXXXXXXXX..",
+            ".XXXXXXXXXXXXXX.", // arms only starting — 14 wide (vs perfect's 16)
             ".XXXXXXXXXXXXXX.",
-            ".XXXoXXXXXXoXXX.",
-            ".XXXoXXXXXXoXXX.",
-            ".XXXXXXXXXXXXXX.",
-            ".XXXXXXXXXXXXXX.",
-            "...X.X....X.X...",
-            "...X.X....X.X..."
+            "..XXXXXXXXXXXX..",
+            "..X.X......X.X..", // 4 legs at perfect's positions
+            "..X.X......X.X.."
         ],
         .perfect: [
             "................",
@@ -109,18 +109,18 @@ final class MascotView: NSView {
             "................"
         ],
         .ultimate: [
-            ".X.X........X.X.",
-            ".X.X........X.X.",
-            "XXXXX......XXXXX",
-            "XXXXXX....XXXXXX",
-            "XXXXXXX..XXXXXXX",
+            ".X.X........X.X.", // 4 horn tips (2 left, 2 right)
+            ".X.X........X.X.", // horn shafts
+            "..XXXXXXXXXXXX..", // perfect's 12-wide body, intact
+            "..XXoXXXXXXoXX..", // same eyes as perfect
+            "..XXoXXXXXXoXX..",
+            "..XXXXXXXXXXXX..",
+            "XXXXXXXXXXXXXXXX", // full 16-wide arm band (kept from perfect)
             "XXXXXXXXXXXXXXXX",
-            "XXXXooXXXXooXXXX",
-            "XXXXooXXXXooXXXX",
-            "XXXXXXXXXXXXXXXX",
-            "XXXXXXXXXXXXXXXX",
-            ".X.X.X....X.X.X.",
-            ".X.X.X....X.X.X."
+            "..XXXXXXXXXXXX..",
+            "..XXXXXXXXXXXX..", // body extended one row taller than perfect
+            "..X.X.X..X.X.X..", // 6 legs (perfect had 4)
+            "..X.X.X..X.X.X.."
         ]
     ]
 
