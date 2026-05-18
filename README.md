@@ -15,7 +15,10 @@ swift run claudeusagebot
 Quit from the menu bar icon, or `Ctrl+C` if running through SwiftPM.
 
 Click the mascot to pop a speech bubble showing today's token usage and cost
-estimate. The mascot's color reflects today's load:
+estimate. **Drag** the mascot to move it anywhere on your screen — its
+position is remembered across launches (use the menu's "위치 초기화" to reset).
+
+The mascot's color reflects today's load:
 
 - calm orange — under 200K tokens today
 - busy yellow — 200K–1M
@@ -26,6 +29,7 @@ The menu bar item exposes:
 - 지금 보여줘 (`⌘S`) — force the bubble open
 - 새로고침 (`⌘R`) — re-scan transcripts immediately
 - 숨기기 / 보이기 (`⌘P`) — hide/show the mascot
+- 위치 초기화 — return the mascot to the bottom-right default
 - Quit (`⌘Q`)
 
 ## Build the App Bundle

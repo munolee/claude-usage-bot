@@ -9,6 +9,13 @@ final class MascotView: NSView {
     var blinkPhase: CGFloat = 0 { didSet { needsDisplay = true } }
 
     var onClick: (() -> Void)?
+    /// Called repeatedly while the user drags the mascot. Delta is in screen points.
+    var onDrag: ((NSPoint) -> Void)?
+    var onDragEnd: (() -> Void)?
+
+    private var dragLastScreenLocation: NSPoint?
+    private var dragAccumulated: CGFloat = 0
+    private static let clickVsDragThreshold: CGFloat = 4
 
     override var isFlipped: Bool { true }
 
@@ -80,6 +87,29 @@ final class MascotView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        onClick?()
+        dragLastScreenLocation = NSEvent.mouseLocation
+        dragAccumulated = 0
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let last = dragLastScreenLocation else { return }
+        let current = NSEvent.mouseLocation
+        let delta = NSPoint(x: current.x - last.x, y: current.y - last.y)
+        dragLastScreenLocation = current
+        dragAccumulated += hypot(delta.x, delta.y)
+        if dragAccumulated >= Self.clickVsDragThreshold {
+            onDrag?(delta)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let wasDrag = dragAccumulated >= Self.clickVsDragThreshold
+        dragLastScreenLocation = nil
+        dragAccumulated = 0
+        if wasDrag {
+            onDragEnd?()
+        } else {
+            onClick?()
+        }
     }
 }

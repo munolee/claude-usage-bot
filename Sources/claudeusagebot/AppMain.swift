@@ -137,6 +137,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         pause.target = self
         menu.addItem(pause)
 
+        let resetPos = NSMenuItem(title: "위치 초기화", action: #selector(resetPosition), keyEquivalent: "")
+        resetPos.target = self
+        menu.addItem(resetPos)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -157,6 +161,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         isPaused.toggle()
         overlay.setHidden(isPaused)
         rebuildStatusMenu()
+    }
+
+    @objc private func resetPosition() {
+        overlay.resetPosition()
     }
 
     @objc private func quit() {
