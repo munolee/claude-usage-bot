@@ -69,18 +69,18 @@ final class MascotView: NSView {
             "......X..X......"
         ],
         .growth: [
-            "....XXXXXXXX....", // head top (8 wide)
-            "....XXXXXXXX....",
-            "....XoXXXXoX....", // head eyes (cols 5, 10)
-            "....XoXXXXoX....",
-            "....XXXXXXXX....", // head bottom
-            "...XXXXXXXXXX...", // neck/shoulder transition (10 wide)
-            "..XXXXXXXXXXXX..", // body 12 wide
+            "................",
+            "................",
+            "....XXXXXXXX....", // narrow top (8 wide)
+            "...XXXXXXXXXX...", // widening (10 wide)
+            "..XXXXXXXXXXXX..", // widest (12 wide)
+            "..XXoXXXXXXoXX..", // eyes (cols 4, 11)
+            "..XXoXXXXXXoXX..",
             "..XXXXXXXXXXXX..",
-            "..XXXXXXXXXXXX..",
-            "..XXXXXXXXXXXX..",
-            "...X..X..X..X...", // 4 evenly-spaced legs (cols 3, 6, 9, 12)
-            "...X..X..X..X..."
+            "...XXXXXXXXXX...", // taper
+            "....XXXXXXXX....", // bottom 8 wide
+            "....X.X..X.X....", // 4 short legs (cols 4, 6, 9, 11)
+            "....X.X..X.X...."
         ],
         .mature: [
             "................",
@@ -111,13 +111,13 @@ final class MascotView: NSView {
             "................"
         ],
         .ultimate: [
-            ".X.X..........cc", // 2 left horns + 2-cell glowing crystal (wand tip)
-            ".X.X..........cc",
-            "..XXXXXXXXXXXX.g", // body 12 wide + wand shaft on the right (col 15)
+            ".X.X........X.Xc", // 4 horns (cols 1, 3, 12, 14) + crystal at col 15
+            ".X.X........X.Xc",
+            "..XXXXXXXXXXXX.g", // body 12 wide + thin wand shaft on col 15
             "..XXoXXXXXXoXX.g", // eyes (same positions as perfect)
             "..XXoXXXXXXoXX.g",
             "..XXXXXXXXXXXX.g",
-            "..XXXXXXXXXXXX.g", // wand shaft continues down to the right hand
+            "..XXXXXXXXXXXX.g", // shaft continues down to the right hand
             "XXXXXXXXXXXXXXXX", // arm band (kept from perfect — right hand grips the wand)
             "XXXXXXXXXXXXXXXX",
             "..XXXXXXXXXXXX..",
