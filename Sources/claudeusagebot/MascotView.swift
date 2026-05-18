@@ -46,8 +46,8 @@ final class MascotView: NSView {
             "....WWssWWsW....", // 2x2 blob (left, row 1) + L tail (right)
             "....WWssWWWW....", // 2x2 blob (left, row 2)
             "....WWWWWWWW....",
-            "....sssWWWWW....", // 3x2 blob anchored to the left edge, row 1
-            "....sssWWssW....", // 3x2 blob row 2 + 2x2 blob (right, row 1)
+            "....ssWWWWWW....", // 2x2 blob anchored to the left edge, row 1
+            "....ssWWWssW....", // 2x2 blob row 2 + 2x2 blob (right, row 1)
             "....WWWWWssW....", // 2x2 blob (right, row 2)
             ".....WWWWWW.....",
             "......WWWW......"
