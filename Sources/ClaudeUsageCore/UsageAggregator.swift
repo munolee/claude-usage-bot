@@ -18,7 +18,6 @@ public struct UsageSummary: Equatable, Sendable {
     public let last7Days: UsageTotals
     public let allTime: UsageTotals
     public let perModelToday: [String: UsageTotals]
-    public let latestActivity: Date?
     public let generatedAt: Date
 
     public init(
@@ -26,14 +25,12 @@ public struct UsageSummary: Equatable, Sendable {
         last7Days: UsageTotals,
         allTime: UsageTotals,
         perModelToday: [String: UsageTotals],
-        latestActivity: Date?,
         generatedAt: Date
     ) {
         self.today = today
         self.last7Days = last7Days
         self.allTime = allTime
         self.perModelToday = perModelToday
-        self.latestActivity = latestActivity
         self.generatedAt = generatedAt
     }
 }
@@ -60,7 +57,6 @@ public enum UsageAggregator {
         var week = UsageTotals()
         var all = UsageTotals()
         var perModel: [String: UsageTotals] = [:]
-        var latest: Date?
 
         for r in deduped {
             add(r, into: &all)
@@ -73,11 +69,6 @@ public enum UsageAggregator {
                 add(r, into: &slot)
                 perModel[r.model] = slot
             }
-            if let l = latest {
-                if r.timestamp > l { latest = r.timestamp }
-            } else {
-                latest = r.timestamp
-            }
         }
 
         return UsageSummary(
@@ -85,7 +76,6 @@ public enum UsageAggregator {
             last7Days: week,
             allTime: all,
             perModelToday: perModel,
-            latestActivity: latest,
             generatedAt: now
         )
     }
