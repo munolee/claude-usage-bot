@@ -10,9 +10,10 @@ final class OverlayController {
     private static let anchorXKey = "mascotAnchorX"
     private static let anchorYKey = "mascotAnchorY"
 
-    // Mascot sprite is 14 cols × 9 rows. Cell size 5pt → 70×45pt frame.
-    private let mascotWidth: CGFloat = 70
-    private let mascotHeight: CGFloat = 45
+    // Mascot canvas is 16 cols × 12 rows (largest sprite — egg / ultimate fit this exactly).
+    // Cell size 5pt → 80×60pt frame.
+    private let mascotWidth: CGFloat = 80
+    private let mascotHeight: CGFloat = 60
     private let maxBubbleWidth: CGFloat = 240
     private let defaultMargin: CGFloat = 24
     private let mascotBubbleGap: CGFloat = 6
@@ -68,12 +69,15 @@ final class OverlayController {
         mascot.onDragEnd = { [weak self] in self?.persistAnchor() }
 
         startBlinking()
+        // Saved positions may have been written when the mascot was smaller — clamp before
+        // the first layout so we never start partly off-screen after a sprite size change.
+        clampAnchorToVisibleScreens()
         relayout()
         panel.orderFrontRegardless()
     }
 
-    func updateMood(_ mood: MascotView.Mood) {
-        mascot.mood = mood
+    func updateStage(_ stage: EvolutionStage) {
+        mascot.stage = stage
     }
 
     /// Show the bubble for `seconds`; pass nil to keep it visible.

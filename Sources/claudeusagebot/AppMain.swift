@@ -33,18 +33,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleSnapshot(_ snapshot: UsageSnapshot) {
-        let mood: MascotView.Mood
-        if let session = snapshot.session {
-            // Mood clamps at the upper threshold; bubble shows the true %.
-            switch min(1.0, session.usageFraction(budgetUSD: budgetUSD)) {
-            case ..<0.5:  mood = .calm
-            case ..<0.85: mood = .busy
-            default:      mood = .alarmed
-            }
-        } else {
-            mood = .calm
-        }
-        overlay.updateMood(mood)
+        let fraction = snapshot.session?.usageFraction(budgetUSD: budgetUSD) ?? 0
+        let stage = EvolutionStage.stage(
+            forFraction: fraction,
+            hasActiveSession: snapshot.session != nil
+        )
+        overlay.updateStage(stage)
         // Bubble is always visible — every refresh just updates its text in place.
         overlay.showBubble(bubbleText(for: snapshot), autoHideAfter: nil)
         rebuildStatusMenu()
@@ -103,9 +97,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         if let session = poller.lastSnapshot?.session {
-            let pct = Int((session.usageFraction(budgetUSD: budgetUSD) * 100).rounded())
+            let fraction = session.usageFraction(budgetUSD: budgetUSD)
+            let pct = Int((fraction * 100).rounded())
+            let stage = EvolutionStage.stage(forFraction: fraction, hasActiveSession: true)
             let header = NSMenuItem(
-                title: "\(pct)% · \(formatRemaining(session.remaining(from: Date())))",
+                title: "\(stage.label) · \(pct)% · \(formatRemaining(session.remaining(from: Date())))",
                 action: nil,
                 keyEquivalent: ""
             )
@@ -113,7 +109,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(header)
             menu.addItem(.separator())
         } else {
-            let none = NSMenuItem(title: "활성 세션 없음", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(title: "\(EvolutionStage.egg.label) · 활성 세션 없음", action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.addItem(none)
             menu.addItem(.separator())
