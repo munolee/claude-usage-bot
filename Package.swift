@@ -9,6 +9,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "claudeusagebot", targets: ["claudeusagebot"]),
+        .executable(name: "spriterender", targets: ["spriterender"]),
         .library(name: "ClaudeUsageCore", targets: ["ClaudeUsageCore"])
     ],
     targets: [
@@ -17,6 +18,11 @@ let package = Package(
             name: "claudeusagebot",
             dependencies: ["ClaudeUsageCore"],
             path: "Sources/claudeusagebot"
+        ),
+        .executableTarget(
+            name: "spriterender",
+            dependencies: ["ClaudeUsageCore"],
+            path: "Sources/spriterender"
         ),
         .testTarget(
             name: "ClaudeUsageCoreTests",
