@@ -42,13 +42,13 @@ final class MascotView: NSView {
             "................",
             "......WWWW......",
             ".....WWWWWW.....",
+            "....WWWWWssW....", // 2-cell speckle, upper right
+            "....WWssWWsW....", // 2x2 blob (left, row 1) + L tail (right)
+            "....WWssWWWW....", // 2x2 blob (left, row 2)
             "....WWWWWWWW....",
-            "....WWsWWsWW....",
-            "....WWWWWWWW....",
-            "....WsWWWWsW....",
-            "....WWWWWWWW....",
-            "....WWsWWsWW....",
-            "....WWWWWWWW....",
+            "....WsWWWWWW....", // tiny single speckle, middle-left
+            "....WWWWWssW....", // 2x2 blob (right, row 1)
+            "....WWWWWssW....", // 2x2 blob (right, row 2)
             ".....WWWWWW.....",
             "......WWWW......"
         ],
