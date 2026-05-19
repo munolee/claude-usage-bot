@@ -1,9 +1,16 @@
 name: Release
 
 # Triggered by pushing a tag like `v0.1.0`. Builds the .app on a macOS runner,
-# wraps it in a UDZO-compressed .dmg, and uploads to a GitHub Release with the
-# same tag. The dmg is what users download via the README link or curl through
-# scripts/install-from-release.sh.
+# signs it with the Developer ID Application certificate, packages a .dmg, has
+# Apple notarize it, staples the ticket, and uploads to a GitHub Release.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   MACOS_CERT_P12_BASE64  — Developer ID Application cert+key exported as .p12, base64 encoded
+#   MACOS_CERT_PASSWORD    — the password set when exporting that .p12
+#   MACOS_DEVELOPER_ID     — codesign identity (SHA-1 fingerprint of the cert, or the full CN)
+#   MACOS_TEAM_ID          — 10-character Apple Developer Team ID
+#   APPLE_ID               — Apple ID email used for notarization
+#   APPLE_ID_PASSWORD      — app-specific password generated at appleid.apple.com
 
 on:
   push:
@@ -17,11 +24,10 @@ on:
         type: string
 
 permissions:
-  contents: write  # needed by softprops/action-gh-release to create/update releases
+  contents: write
 
 jobs:
   build-and-release:
-    # macos-15 ships Xcode 16 / Swift 6 by default, which matches our Package.swift.
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -32,16 +38,92 @@ jobs:
       - name: Run tests
         run: swift test
 
-      - name: Build & package .app
+      - name: Build .app bundle
         run: ./scripts/package-app.sh
 
-      - name: Build the .dmg (read-only, UDZO-compressed)
+      - name: Create signing keychain
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -e
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          # Use a per-run random password for the temporary keychain itself.
+          KP=$(openssl rand -base64 32)
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "::add-mask::$KP"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KP" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KP" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          # Add our keychain to the search list so codesign can find the identity.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          # Allow codesign to access the private key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KP" "$KEYCHAIN_PATH"
+          rm "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Codesign the .app (Developer ID, hardened runtime, timestamped)
+        env:
+          DEVELOPER_ID: ${{ secrets.MACOS_DEVELOPER_ID }}
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "$DEVELOPER_ID" \
+            .build/release/ClaudeUsageBot.app
+          codesign --verify --deep --strict --verbose=2 .build/release/ClaudeUsageBot.app
+
+      - name: Build the .dmg
         run: |
           hdiutil create \
             -volname "ClaudeUsageBot" \
             -srcfolder .build/release/ClaudeUsageBot.app \
             -ov -format UDZO \
             .build/release/ClaudeUsageBot.dmg
+
+      - name: Codesign the .dmg
+        env:
+          DEVELOPER_ID: ${{ secrets.MACOS_DEVELOPER_ID }}
+        run: |
+          codesign --force --timestamp --sign "$DEVELOPER_ID" .build/release/ClaudeUsageBot.dmg
+          codesign --verify --verbose=2 .build/release/ClaudeUsageBot.dmg
+
+      - name: Notarize the .dmg (waits for Apple's verdict)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+        run: |
+          # `--wait` blocks until Apple finishes scanning (usually 1–5 min).
+          # On failure, dump the log so we can debug the rejection reason.
+          set -o pipefail
+          if ! xcrun notarytool submit .build/release/ClaudeUsageBot.dmg \
+              --apple-id "$APPLE_ID" \
+              --team-id "$TEAM_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --wait 2>&1 | tee /tmp/notarize.log; then
+            SUB_ID=$(grep -E "^  id:" /tmp/notarize.log | head -1 | awk '{print $2}')
+            if [ -n "$SUB_ID" ]; then
+              echo "--- notarization log for $SUB_ID ---"
+              xcrun notarytool log "$SUB_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$TEAM_ID" \
+                --password "$APPLE_ID_PASSWORD" || true
+            fi
+            exit 1
+          fi
+
+      - name: Staple the notarization ticket onto the .dmg
+        run: |
+          xcrun stapler staple .build/release/ClaudeUsageBot.dmg
+          xcrun stapler validate .build/release/ClaudeUsageBot.dmg
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
