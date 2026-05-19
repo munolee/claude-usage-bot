@@ -5,23 +5,59 @@ import ClaudeUsageCore
 ///
 /// Scanning is done on a background queue so the main run loop stays responsive even when
 /// transcripts have grown large. The completion is hopped back to the main actor.
+///
+/// In parallel, the poller fetches `/api/oauth/usage` on a slower cadence (default 5 min)
+/// and stamps the result onto every snapshot until it expires or is replaced. The API call
+/// runs through `AnthropicUsageClient` which reads the keychain on each request, so token
+/// rotation happens transparently. Failures are silent — the snapshot's `apiUsage` simply
+/// stays `nil` (or stale, for transient errors) and consumers fall back to JSONL-based math.
 struct UsageSnapshot: Sendable {
     let summary: UsageSummary
     let session: SessionWindow?
+    /// Most recent successful API response, if any. May be older than this snapshot's
+    /// JSONL scan — the API runs on a much slower cadence than the local refresh.
+    let apiUsage: AnthropicUsage?
+    /// Status of the last API attempt. Used to show a one-line indicator in the menu.
+    let apiStatus: ApiStatus
+}
+
+enum ApiStatus: Sendable, Equatable {
+    /// Haven't attempted a fetch yet this run.
+    case idle
+    /// Last fetch succeeded.
+    case ok
+    /// Backed off after a 429. `until` is when we'll try again.
+    case rateLimited(until: Date)
+    /// Keychain missing / 401. Stays this way until restart or a manual refresh.
+    case unauthenticated
+    /// Generic error — network, decoding, etc.
+    case error(String)
 }
 
 @MainActor
 final class UsagePoller {
     private let interval: TimeInterval
+    private let apiInterval: TimeInterval
     private let root: URL
     private var timer: Timer?
     private let queue = DispatchQueue(label: "ClaudeUsageBot.UsagePoller", qos: .utility)
     private(set) var lastSnapshot: UsageSnapshot?
 
+    /// Backoff state for the API fetch loop. Lives on the main actor — all mutation
+    /// happens from `maybeFetchApiUsage` which is `@MainActor`.
+    private var apiClient = AnthropicUsageClient()
+    private var lastApiUsage: AnthropicUsage?
+    private var apiStatus: ApiStatus = .idle
+    private var nextApiAttempt: Date = .distantPast
+    /// 5m → 10m → 20m → 40m, capped at 60m, on consecutive 429s.
+    private var apiBackoff: TimeInterval
+
     var onUpdate: ((UsageSnapshot) -> Void)?
 
-    init(interval: TimeInterval = 30, root: URL = UsageReader.defaultRoot) {
+    init(interval: TimeInterval = 30, apiInterval: TimeInterval = 300, root: URL = UsageReader.defaultRoot) {
         self.interval = interval
+        self.apiInterval = apiInterval
+        self.apiBackoff = apiInterval
         self.root = root
     }
 
@@ -52,11 +88,54 @@ final class UsagePoller {
             }
             let summary = UsageAggregator.summarize(records: allRecords)
             let session = SessionDetector.currentSession(records: allRecords)
-            let snapshot = UsageSnapshot(summary: summary, session: session)
             Task { @MainActor in
-                self?.lastSnapshot = snapshot
-                self?.onUpdate?(snapshot)
+                guard let self else { return }
+                await self.maybeFetchApiUsage()
+                let snapshot = UsageSnapshot(
+                    summary: summary,
+                    session: session,
+                    apiUsage: self.lastApiUsage,
+                    apiStatus: self.apiStatus
+                )
+                self.lastSnapshot = snapshot
+                self.onUpdate?(snapshot)
             }
+        }
+    }
+
+    /// Fires an API fetch if enough time has passed since the last attempt. The classifier
+    /// here is intentionally simple — one in-flight request at a time, status updates after
+    /// it returns. We don't try to refresh more aggressively than `apiInterval` even on
+    /// success: the endpoint is rate-limited and the values only meaningfully change every
+    /// few minutes anyway.
+    private func maybeFetchApiUsage() async {
+        let now = Date()
+        guard now >= nextApiAttempt else { return }
+        nextApiAttempt = now.addingTimeInterval(apiInterval)
+
+        do {
+            let usage = try await apiClient.fetch()
+            lastApiUsage = usage
+            apiStatus = .ok
+            apiBackoff = apiInterval  // reset on success
+        } catch let AnthropicUsageError.rateLimited(retryAfter) {
+            apiBackoff = min(apiBackoff * 2, 3600)
+            let wait = retryAfter ?? apiBackoff
+            let until = Date().addingTimeInterval(wait)
+            nextApiAttempt = until
+            apiStatus = .rateLimited(until: until)
+        } catch AnthropicUsageError.authenticationFailed,
+                AnthropicUsageError.tokenUnavailable {
+            apiStatus = .unauthenticated
+            // Try again on the normal cadence — a Claude Code re-login may fix this.
+        } catch let AnthropicUsageError.server(code) {
+            apiStatus = .error("HTTP \(code)")
+        } catch let AnthropicUsageError.network(msg) {
+            apiStatus = .error("네트워크: \(msg)")
+        } catch let AnthropicUsageError.decoding(msg) {
+            apiStatus = .error("응답 파싱: \(msg)")
+        } catch {
+            apiStatus = .error(String(describing: error))
         }
     }
 }
