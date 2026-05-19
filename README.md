@@ -139,11 +139,9 @@ Pick whichever path suits you — both end up with the same
 
 1. Open the downloaded `.dmg` (double-click).
 2. Drag `ClaudeUsageBot.app` into `/Applications`.
-3. The first launch may be blocked by Gatekeeper (unsigned build) — right-click
-   the app → **Open** once, or run:
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/ClaudeUsageBot.app
-   ```
+3. Launch from Spotlight / Launchpad — the build is signed with a Developer
+   ID certificate and notarized by Apple, so Gatekeeper lets it run without
+   the "unidentified developer" warning or the `xattr` workaround.
 
 You can also browse all releases on the
 [Releases page](https://github.com/munolee/claude-usage-bot/releases).
@@ -155,8 +153,8 @@ curl -fsSL https://raw.githubusercontent.com/munolee/claude-usage-bot/main/scrip
 ```
 
 The script downloads the latest `.dmg`, mounts it, copies the app into
-`/Applications`, strips the Gatekeeper quarantine flag, ejects the image, and
-launches the app. Pin a version with `VERSION=v0.1.5 bash …` if needed.
+`/Applications`, ejects the image, and launches the app. Pin a version with
+`VERSION=v0.2.0 bash …` if needed.
 
 To auto-start at login: **System Settings → General → Login Items → +
 `/Applications/ClaudeUsageBot.app`**.
