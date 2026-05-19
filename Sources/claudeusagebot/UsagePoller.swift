@@ -86,15 +86,59 @@ final class UsagePoller {
     }
 
     /// Explicit user action that should *bypass* every gate (debounce, 429 backoff,
-    /// stale "unauthenticated" status). Used by the "Claude Code 로그인…" menu entry
-    /// where the user just proved we have a working token — we must hit the API
-    /// immediately rather than wait for the next scheduled poll.
-    func forceApiRefresh() {
+    /// stale "unauthenticated" status). Used by the "Claude Code 로그인…" menu entry.
+    ///
+    /// Pass `usingToken` when the caller already read the token from the keychain — we
+    /// hand it straight to the API client so the fetch doesn't re-enter
+    /// `KeychainTokenReader` on a background queue (which can hang waiting on a hidden
+    /// ACL dialog if the user picked "Allow" instead of "Always Allow").
+    func forceApiRefresh(usingToken token: String? = nil) {
         nextApiAttempt = .distantPast
         lastClickFetch = .distantPast
         apiStatus = .idle
         apiBackoff = apiInterval
-        refreshNow()
+        Task { @MainActor in
+            await self.fetchApiAndEmit(usingToken: token)
+        }
+    }
+
+    /// Bypasses the JSONL re-scan and the maybeFetchApiUsage gate, just fires the API
+    /// fetch with an explicit token and emits a fresh snapshot. The full JSONL refresh
+    /// will follow on the next scheduled tick — for the post-login UX what matters is
+    /// the API result landing in the bubble *now*.
+    private func fetchApiAndEmit(usingToken token: String?) async {
+        nextApiAttempt = Date().addingTimeInterval(apiInterval)
+        do {
+            let usage = try await apiClient.fetch(usingToken: token)
+            lastApiUsage = usage
+            apiStatus = .ok
+            apiBackoff = apiInterval
+        } catch let AnthropicUsageError.rateLimited(retryAfter) {
+            apiBackoff = min(apiBackoff * 2, 3600)
+            let wait = retryAfter ?? apiBackoff
+            let until = Date().addingTimeInterval(wait)
+            nextApiAttempt = until
+            apiStatus = .rateLimited(until: until)
+        } catch AnthropicUsageError.authenticationFailed,
+                AnthropicUsageError.tokenUnavailable {
+            apiStatus = .unauthenticated
+        } catch let AnthropicUsageError.server(code) {
+            apiStatus = .error("HTTP \(code)")
+        } catch let AnthropicUsageError.network(msg) {
+            apiStatus = .error("네트워크: \(msg)")
+        } catch let AnthropicUsageError.decoding(msg) {
+            apiStatus = .error("응답 파싱: \(msg)")
+        } catch {
+            apiStatus = .error(String(describing: error))
+        }
+        let snapshot = UsageSnapshot(
+            summary: lastSnapshot?.summary ?? UsageAggregator.summarize(records: []),
+            session: lastSnapshot?.session,
+            apiUsage: lastApiUsage,
+            apiStatus: apiStatus
+        )
+        lastSnapshot = snapshot
+        onUpdate?(snapshot)
     }
 
     /// Mascot/menu click entry point. Always rescans JSONL (cheap, local). For the API,

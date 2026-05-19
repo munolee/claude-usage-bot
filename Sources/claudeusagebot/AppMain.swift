@@ -297,15 +297,16 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func requestClaudeLogin() {
         NSApp.activate(ignoringOtherApps: true)
         do {
-            _ = try KeychainTokenReader.readClaudeAccessToken()
+            let token = try KeychainTokenReader.readClaudeAccessToken()
             let alert = NSAlert()
             alert.messageText = "Claude Code에 연결되었습니다"
             alert.informativeText = "키체인에서 토큰을 읽어왔습니다. 곧 Anthropic API에서 정확한 사용량을 가져옵니다."
             alert.addButton(withTitle: "확인")
             alert.runModal()
-            // Bypass the click-debounce / unauthenticated-status gates so the bubble
-            // updates immediately rather than waiting for the next 90s tick.
-            poller.forceApiRefresh()
+            // Pass the just-read token directly so the API fetch doesn't re-enter the
+            // keychain on a background thread — otherwise a "single Allow" ACL grant
+            // would hang the fetch behind an invisible second dialog.
+            poller.forceApiRefresh(usingToken: token)
         } catch KeychainTokenReader.Failure.notFound {
             let alert = NSAlert()
             alert.messageText = "Claude Code CLI에 로그인이 필요합니다"
