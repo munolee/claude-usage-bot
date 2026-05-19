@@ -223,10 +223,5 @@ notice a meaningful gap, re-calibrate.
 
 ## Acknowledgments
 
-Inspired by [FreeRoamer](https://github.com/munolee/FreeRoamer) — the same
-borderless-NSPanel + screen-saver-level + drag-to-move pattern. This app
-trades the wandering for a single fixed perch, swaps the dancing mascot for an
-evolving one, and adds a transcript reader.
-
 Evolution staging owes more than a little to Digimon's hatch → in-training →
 rookie → champion → ultimate → mega chain.
