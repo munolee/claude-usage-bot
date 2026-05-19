@@ -8,9 +8,17 @@ import ClaudeUsageCore
 //   swift run spriterender                 → writes to ./docs/stages/
 //   swift run spriterender path/to/output  → writes to the supplied directory
 
+// `spriterender icons <out.iconset> [stage]`  → write the 10-file Apple iconset
+// `spriterender [<outdir>]`                   → existing stage PNG export (default ./docs/stages)
+let args = CommandLine.arguments
+let iconsMode = args.count >= 2 && args[1] == "icons"
+
 let outputPath: String = {
-    if CommandLine.arguments.count > 1 {
-        return CommandLine.arguments[1]
+    if iconsMode {
+        return args.count >= 3 ? args[2] : FileManager.default.currentDirectoryPath + "/AppIcon.iconset"
+    }
+    if args.count > 1 {
+        return args[1]
     }
     return FileManager.default.currentDirectoryPath + "/docs/stages"
 }()
@@ -123,6 +131,110 @@ func renderCombined(_ stages: [EvolutionStage]) -> Data {
 
     NSGraphicsContext.restoreGraphicsState()
     return bitmap.representation(using: .png, properties: [:])!
+}
+
+/// Draws one sprite into the current graphics context, fitted to the given inner box.
+/// Caller is responsible for the background. Pixel-art-friendly (no antialiasing).
+func drawSprite(_ sprite: [String], in box: NSRect) {
+    let cellSize = box.width / CGFloat(MascotSprite.canvasCols)
+    let totalH = cellSize * CGFloat(MascotSprite.canvasRows)
+    let yBase = box.minY + (box.height - totalH) / 2
+    for (rowIdx, row) in sprite.enumerated() {
+        for (colIdx, ch) in row.enumerated() {
+            guard let c = color(for: ch) else { continue }
+            c.setFill()
+            // Bitmap origin is bottom-left; flip Y so row 0 sits at the top.
+            let y = yBase + (CGFloat(MascotSprite.canvasRows) - 1 - CGFloat(rowIdx)) * cellSize
+            NSRect(
+                x: box.minX + CGFloat(colIdx) * cellSize,
+                y: y,
+                width: cellSize,
+                height: cellSize
+            ).fill()
+        }
+    }
+}
+
+/// Renders one icon: cream squircle background + Ultimate as the main mascot, with a
+/// small Egg accessory tucked into the top-left corner — the "memento of origin"
+/// composition the user requested.
+func renderIcon(size: Int) -> Data {
+    let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: size,
+        pixelsHigh: size,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )!
+    let gctx = NSGraphicsContext(bitmapImageRep: bitmap)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = gctx
+
+    // macOS app icons use a continuous-curvature "squircle" — corner radius ≈ 22.5%.
+    // Warm dark sepia echoes Claude's brand palette and lets the cream Egg + orange
+    // Ultimate both pop instead of clashing with a cool navy.
+    let cornerRadius = CGFloat(size) * 0.225
+    let rect = NSRect(x: 0, y: 0, width: size, height: size)
+    NSColor(calibratedRed: 0.36, green: 0.17, blue: 0.12, alpha: 1).setFill()
+    NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+
+    gctx.cgContext.setShouldAntialias(false)
+    gctx.cgContext.interpolationQuality = .none
+
+    let S = CGFloat(size)
+
+    // Main subject: Ultimate, centered, occupying ~75% of the canvas.
+    let mainInset = S * 0.125
+    let mainBox = NSRect(
+        x: mainInset,
+        y: mainInset,
+        width: S - mainInset * 2,
+        height: S - mainInset * 2
+    )
+    drawSprite(MascotSprite.sprite(for: .ultimate), in: mainBox)
+
+    // Accessory: Egg tucked into the bottom-left corner at ~28% of the canvas.
+    let eggSize = S * 0.34
+    let eggMarginY = S * 0.10
+    let eggMarginX = S * 0.05
+    let eggBox = NSRect(
+        x: eggMarginX,
+        y: eggMarginY,
+        width: eggSize,
+        height: eggSize
+    )
+    drawSprite(MascotSprite.sprite(for: .egg), in: eggBox)
+
+    NSGraphicsContext.restoreGraphicsState()
+    return bitmap.representation(using: .png, properties: [:])!
+}
+
+if iconsMode {
+    // Apple's required iconset layout: (filename, pixel size).
+    let entries: [(String, Int)] = [
+        ("icon_16x16.png",       16),
+        ("icon_16x16@2x.png",    32),
+        ("icon_32x32.png",       32),
+        ("icon_32x32@2x.png",    64),
+        ("icon_128x128.png",    128),
+        ("icon_128x128@2x.png", 256),
+        ("icon_256x256.png",    256),
+        ("icon_256x256@2x.png", 512),
+        ("icon_512x512.png",    512),
+        ("icon_512x512@2x.png", 1024),
+    ]
+    for (filename, size) in entries {
+        let data = renderIcon(size: size)
+        let url = outputDir.appendingPathComponent(filename)
+        try data.write(to: url)
+        print("wrote \(url.path) (\(size)px)")
+    }
+    exit(0)
 }
 
 let stages = EvolutionStage.allCases

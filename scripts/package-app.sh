@@ -16,5 +16,6 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 cp "$BUILD_DIR/$EXEC_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp Packaging/Info.plist "$APP_BUNDLE/Contents/Info.plist"
+cp Packaging/AppIcon.icns "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Built $APP_BUNDLE"

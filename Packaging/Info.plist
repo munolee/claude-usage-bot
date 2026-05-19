@@ -4,6 +4,8 @@
 <dict>
     <key>CFBundleExecutable</key>
     <string>ClaudeUsageBot</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.example.ClaudeUsageBot</string>
     <key>CFBundleName</key>
