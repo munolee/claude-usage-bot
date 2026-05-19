@@ -34,7 +34,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         overlay = OverlayController()
-        overlay.onMascotClick = { [weak self] in self?.poller.refreshNow() }
+        overlay.onMascotClick = { [weak self] in self?.poller.refreshFromClick() }
         overlay.menuProvider = { [weak self] in self?.buildMenu() }
         // Placeholder until the first snapshot lands.
         overlay.showBubble("…", autoHideAfter: nil)
@@ -274,7 +274,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func refresh() {
-        poller.refreshNow()
+        poller.refreshFromClick()
     }
 
     @objc private func togglePause() {

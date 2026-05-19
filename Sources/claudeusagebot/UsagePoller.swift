@@ -52,6 +52,12 @@ final class UsagePoller {
     /// 5m → 10m → 20m → 40m, capped at 60m, on consecutive 429s.
     private var apiBackoff: TimeInterval
 
+    /// Click-triggered fetches bypass the 5-minute cadence but enforce their own
+    /// short debounce so a chatty user can't hammer the endpoint. 20s lines up with
+    /// the typical floor we've seen before the server starts replying 429.
+    private let clickDebounceInterval: TimeInterval = 20
+    private var lastClickFetch: Date = .distantPast
+
     var onUpdate: ((UsageSnapshot) -> Void)?
 
     init(interval: TimeInterval = 30, apiInterval: TimeInterval = 300, root: URL = UsageReader.defaultRoot) {
@@ -73,6 +79,22 @@ final class UsagePoller {
     func stop() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// Mascot/menu click entry point. Always rescans JSONL (cheap, local). For the API,
+    /// opens the gate so the next refresh cycle hits the endpoint — unless we're inside
+    /// a 429 backoff window, or another click already fetched within `clickDebounceInterval`.
+    func refreshFromClick() {
+        let now = Date()
+        let inBackoff: Bool = {
+            if case .rateLimited = apiStatus { return true }
+            return false
+        }()
+        if !inBackoff && now.timeIntervalSince(lastClickFetch) >= clickDebounceInterval {
+            lastClickFetch = now
+            nextApiAttempt = .distantPast
+        }
+        refreshNow()
     }
 
     func refreshNow() {
