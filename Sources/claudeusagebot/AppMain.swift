@@ -196,6 +196,15 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh.target = self
         menu.addItem(refresh)
 
+        // State-aware login affordance. When the API is live the item just lets the user
+        // re-verify the keychain connection; when it isn't, the same item is the entry
+        // point for the "log in" / "fix permission" / "open Keychain Access" flows.
+        let connected = view?.source == .api
+        let loginTitle = connected ? "Claude Code 연동 확인…" : "Claude Code 로그인…"
+        let login = NSMenuItem(title: loginTitle, action: #selector(requestClaudeLogin), keyEquivalent: "")
+        login.target = self
+        menu.addItem(login)
+
         let pause = NSMenuItem(
             title: isPaused ? "보이기" : "숨기기",
             action: #selector(togglePause),
@@ -277,6 +286,53 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refresh() {
         poller.refreshFromClick()
+    }
+
+    /// Explicit "log in" entry point. We don't run our own OAuth — we borrow the token
+    /// Claude Code CLI stored in the keychain. So this just probes that path and gives
+    /// the user actionable feedback for the three states they actually land in:
+    ///   - token reads cleanly → API will use it
+    ///   - keychain item missing → user needs to run `claude` once
+    ///   - keychain item present but ACL denied → user has to fix it in Keychain Access
+    @objc private func requestClaudeLogin() {
+        NSApp.activate(ignoringOtherApps: true)
+        do {
+            _ = try KeychainTokenReader.readClaudeAccessToken()
+            let alert = NSAlert()
+            alert.messageText = "Claude Code에 연결되었습니다"
+            alert.informativeText = "키체인에서 토큰을 읽어왔습니다. 곧 Anthropic API에서 정확한 사용량을 가져옵니다."
+            alert.addButton(withTitle: "확인")
+            alert.runModal()
+            poller.refreshFromClick()
+        } catch KeychainTokenReader.Failure.notFound {
+            let alert = NSAlert()
+            alert.messageText = "Claude Code CLI에 로그인이 필요합니다"
+            alert.informativeText = "macOS 키체인에 'Claude Code-credentials' 항목이 없습니다.\n터미널에서 아래 명령을 실행해 브라우저 OAuth를 한 번 통과한 뒤 이 메뉴를 다시 눌러주세요:\n\n    claude\n\n(Claude Code CLI가 설치되어 있어야 합니다.)"
+            alert.addButton(withTitle: "명령 복사")
+            alert.addButton(withTitle: "닫기")
+            if alert.runModal() == .alertFirstButtonReturn {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString("claude", forType: .string)
+            }
+        } catch let KeychainTokenReader.Failure.osStatus(status) {
+            let alert = NSAlert()
+            alert.messageText = "키체인 접근이 거부되었습니다 (OSStatus \(status))"
+            alert.informativeText = "Keychain Access를 열고 'Claude Code-credentials' 항목 → Get Info → Access Control 에서 ClaudeUsageBot을 허용 목록에 추가하거나 'Allow all applications to access this item'을 선택해주세요."
+            alert.addButton(withTitle: "Keychain Access 열기")
+            alert.addButton(withTitle: "닫기")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.launchApplication("Keychain Access")
+            }
+        } catch let KeychainTokenReader.Failure.unexpectedShape(reason) {
+            let alert = NSAlert()
+            alert.messageText = "키체인 데이터 형식이 예상과 다릅니다"
+            alert.informativeText = "왜: \(reason)\n\nClaude Code 버전이 바뀌었을 수 있습니다. `claude` 명령을 한 번 더 실행해 토큰을 재발급해보세요."
+            alert.runModal()
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
     }
 
     @objc private func togglePause() {
