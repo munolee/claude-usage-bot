@@ -1,5 +1,8 @@
 # Claude Usage Bot
 
+[![Latest Release](https://img.shields.io/github/v/release/munolee/claude-usage-bot?label=download)](https://github.com/munolee/claude-usage-bot/releases/latest)
+[![Direct .dmg](https://img.shields.io/badge/ClaudeUsageBot.dmg-Download-1f6feb?logo=apple&logoColor=white)](https://github.com/munolee/claude-usage-bot/releases/latest/download/ClaudeUsageBot.dmg)
+
 A small macOS overlay app that lives on the bottom-right of your screen and shows
 how much of your **Claude Code 5-hour session** you've used — as a tiny pixel
 mascot that **evolves through six forms** as your usage climbs.
@@ -8,8 +11,10 @@ mascot that **evolves through six forms** as your usage climbs.
   <img width="135" height="119" alt="image" src="https://github.com/user-attachments/assets/a7793c9f-bb1a-4a9e-8bb6-67e579c73641" />
 </p>
 
-> Pure local — reads `~/.claude/projects/**/*.jsonl` directly. No API key, no
-> network calls, nothing leaves your machine.
+> Uses Claude Code's OAuth token (read from your macOS keychain) to pull exact
+> usage from Anthropic's private `/api/oauth/usage` endpoint. Falls back to a
+> local JSONL cost estimate if the token isn't available. No separate API key
+> required.
 
 ---
 
@@ -125,16 +130,33 @@ other closely until the next session boundary.
 
 ## Install
 
-### One-liner (no repo clone, no Swift toolchain)
+Pick whichever path suits you — both end up with the same
+`/Applications/ClaudeUsageBot.app`.
+
+### GUI: download the latest `.dmg`
+
+👉 **[Download ClaudeUsageBot.dmg (latest release)](https://github.com/munolee/claude-usage-bot/releases/latest/download/ClaudeUsageBot.dmg)**
+
+1. Open the downloaded `.dmg` (double-click).
+2. Drag `ClaudeUsageBot.app` into `/Applications`.
+3. The first launch may be blocked by Gatekeeper (unsigned build) — right-click
+   the app → **Open** once, or run:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/ClaudeUsageBot.app
+   ```
+
+You can also browse all releases on the
+[Releases page](https://github.com/munolee/claude-usage-bot/releases).
+
+### Terminal: one-liner (no repo clone, no Swift toolchain)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/munolee/claude-usage-bot/main/scripts/install-from-release.sh | bash
 ```
 
-The script downloads the latest GitHub release, installs to
-`/Applications/ClaudeUsageBot.app`, strips the Gatekeeper quarantine flag
-(unsigned build), and launches the app. Pin a version with
-`VERSION=v0.1.0 bash …` if needed.
+The script downloads the latest `.dmg`, mounts it, copies the app into
+`/Applications`, strips the Gatekeeper quarantine flag, ejects the image, and
+launches the app. Pin a version with `VERSION=v0.1.5 bash …` if needed.
 
 To auto-start at login: **System Settings → General → Login Items → +
 `/Applications/ClaudeUsageBot.app`**.
@@ -142,16 +164,11 @@ To auto-start at login: **System Settings → General → Login Items → +
 ### First-run permission prompt
 
 The app reads Claude Code's OAuth token from your macOS keychain to fetch
-usage from Anthropic directly. On first launch macOS will ask whether
-ClaudeUsageBot can read the `Claude Code-credentials` keychain item —
-choose **"Always Allow"**. If you dismiss it by accident, open
+usage from Anthropic directly. After launch, right-click the mascot →
+**"Claude Code 로그인…"**, then choose **"Always Allow"** in the macOS
+keychain dialog. If you dismiss it by accident, open
 **Keychain Access → login → Claude Code-credentials → Access Control**
 and add ClaudeUsageBot (or pick "Allow all applications").
-
-> The app isn't code-signed yet. macOS Sequoia may still warn the first
-> time — the install script removes the quarantine attribute so launches
-> succeed, but if you downloaded the `.zip` manually, run
-> `xattr -dr com.apple.quarantine /Applications/ClaudeUsageBot.app` once.
 
 ### Build from source
 
