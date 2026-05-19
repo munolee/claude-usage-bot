@@ -303,7 +303,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.informativeText = "키체인에서 토큰을 읽어왔습니다. 곧 Anthropic API에서 정확한 사용량을 가져옵니다."
             alert.addButton(withTitle: "확인")
             alert.runModal()
-            poller.refreshFromClick()
+            // Bypass the click-debounce / unauthenticated-status gates so the bubble
+            // updates immediately rather than waiting for the next 90s tick.
+            poller.forceApiRefresh()
         } catch KeychainTokenReader.Failure.notFound {
             let alert = NSAlert()
             alert.messageText = "Claude Code CLI에 로그인이 필요합니다"

@@ -85,6 +85,18 @@ final class UsagePoller {
         timer = nil
     }
 
+    /// Explicit user action that should *bypass* every gate (debounce, 429 backoff,
+    /// stale "unauthenticated" status). Used by the "Claude Code 로그인…" menu entry
+    /// where the user just proved we have a working token — we must hit the API
+    /// immediately rather than wait for the next scheduled poll.
+    func forceApiRefresh() {
+        nextApiAttempt = .distantPast
+        lastClickFetch = .distantPast
+        apiStatus = .idle
+        apiBackoff = apiInterval
+        refreshNow()
+    }
+
     /// Mascot/menu click entry point. Always rescans JSONL (cheap, local). For the API,
     /// opens the gate so the next refresh cycle hits the endpoint — unless we're inside
     /// a 429 backoff window, or another click already fetched within `clickDebounceInterval`.
