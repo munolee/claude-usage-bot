@@ -174,24 +174,39 @@ func renderIcon(size: Int) -> Data {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = gctx
 
-    // macOS app icons use a continuous-curvature "squircle" — corner radius ≈ 22.5%.
-    // Warm coral background (a touch more saturated than the mascot's body color) so
-    // the cream-inverted Ultimate sits cleanly on top with strong contrast.
-    let cornerRadius = CGFloat(size) * 0.225
-    let rect = NSRect(x: 0, y: 0, width: size, height: size)
+    let S = CGFloat(size)
+
+    // macOS HIG: the squircle should sit inside the icon canvas with ~10% padding
+    // so it matches the visual size of every other app icon in the Dock.
+    let canvasPadding = S * 0.10
+    let squircleSide = S - canvasPadding * 2
+    // Apple's continuous-curvature "squircle" — corner radius ≈ 22.5% of the squircle side.
+    let cornerRadius = squircleSide * 0.225
+    let squircleRect = NSRect(
+        x: canvasPadding,
+        y: canvasPadding,
+        width: squircleSide,
+        height: squircleSide
+    )
     NSColor(calibratedRed: 0.89, green: 0.52, blue: 0.38, alpha: 1).setFill()
-    NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+    NSBezierPath(roundedRect: squircleRect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
 
     gctx.cgContext.setShouldAntialias(false)
     gctx.cgContext.interpolationQuality = .none
 
-    let S = CGFloat(size)
-    let inset = S * 0.125
-    let box = NSRect(x: inset, y: inset, width: S - inset * 2, height: S - inset * 2)
+    // Mascot fits inside the squircle with its own breathing room.
+    let mascotInset = squircleSide * 0.125
+    let box = NSRect(
+        x: squircleRect.minX + mascotInset,
+        y: squircleRect.minY + mascotInset,
+        width: squircleSide - mascotInset * 2,
+        height: squircleSide - mascotInset * 2
+    )
 
-    // Inverted palette: body in cream, accents (eye / wand crystal) in the original
-    // mascot body color so they read as "cut-outs" against the cream silhouette.
-    let cream = NSColor(calibratedRed: 0.97, green: 0.93, blue: 0.85, alpha: 1)
+    // Inverted palette: body in near-white (with a hint of warmth so it doesn't
+    // look sterile), accents in the original mascot body color so they read as
+    // "cut-outs" against the silhouette.
+    let cream = NSColor(calibratedRed: 1.00, green: 0.99, blue: 0.97, alpha: 1)
     let accent = NSColor(calibratedRed: 0.85, green: 0.48, blue: 0.36, alpha: 1)
     let wandDark = NSColor(calibratedRed: 0.28, green: 0.20, blue: 0.15, alpha: 1)
     func iconPalette(_ ch: Character) -> NSColor? {
