@@ -155,9 +155,8 @@ func drawSprite(_ sprite: [String], in box: NSRect) {
     }
 }
 
-/// Renders one icon: cream squircle background + Ultimate as the main mascot, with a
-/// small Egg accessory tucked into the top-left corner — the "memento of origin"
-/// composition the user requested.
+/// Renders one icon: warm orange squircle background + Ultimate drawn in cream
+/// (color-inverted palette). No accessory — Ultimate stands alone, centered.
 func renderIcon(size: Int) -> Data {
     let bitmap = NSBitmapImageRep(
         bitmapDataPlanes: nil,
@@ -176,39 +175,51 @@ func renderIcon(size: Int) -> Data {
     NSGraphicsContext.current = gctx
 
     // macOS app icons use a continuous-curvature "squircle" — corner radius ≈ 22.5%.
-    // Warm dark sepia echoes Claude's brand palette and lets the cream Egg + orange
-    // Ultimate both pop instead of clashing with a cool navy.
+    // Warm coral background (a touch more saturated than the mascot's body color) so
+    // the cream-inverted Ultimate sits cleanly on top with strong contrast.
     let cornerRadius = CGFloat(size) * 0.225
     let rect = NSRect(x: 0, y: 0, width: size, height: size)
-    NSColor(calibratedRed: 0.36, green: 0.17, blue: 0.12, alpha: 1).setFill()
+    NSColor(calibratedRed: 0.89, green: 0.52, blue: 0.38, alpha: 1).setFill()
     NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
 
     gctx.cgContext.setShouldAntialias(false)
     gctx.cgContext.interpolationQuality = .none
 
     let S = CGFloat(size)
+    let inset = S * 0.125
+    let box = NSRect(x: inset, y: inset, width: S - inset * 2, height: S - inset * 2)
 
-    // Main subject: Ultimate, centered, occupying ~75% of the canvas.
-    let mainInset = S * 0.125
-    let mainBox = NSRect(
-        x: mainInset,
-        y: mainInset,
-        width: S - mainInset * 2,
-        height: S - mainInset * 2
-    )
-    drawSprite(MascotSprite.sprite(for: .ultimate), in: mainBox)
+    // Inverted palette: body in cream, accents (eye / wand crystal) in the original
+    // mascot body color so they read as "cut-outs" against the cream silhouette.
+    let cream = NSColor(calibratedRed: 0.97, green: 0.93, blue: 0.85, alpha: 1)
+    let accent = NSColor(calibratedRed: 0.85, green: 0.48, blue: 0.36, alpha: 1)
+    let wandDark = NSColor(calibratedRed: 0.28, green: 0.20, blue: 0.15, alpha: 1)
+    func iconPalette(_ ch: Character) -> NSColor? {
+        switch ch {
+        case "X": return cream
+        case "o", "c": return accent
+        case "g": return wandDark
+        default:  return nil
+        }
+    }
 
-    // Accessory: Egg tucked into the bottom-left corner at ~28% of the canvas.
-    let eggSize = S * 0.34
-    let eggMarginY = S * 0.10
-    let eggMarginX = S * 0.05
-    let eggBox = NSRect(
-        x: eggMarginX,
-        y: eggMarginY,
-        width: eggSize,
-        height: eggSize
-    )
-    drawSprite(MascotSprite.sprite(for: .egg), in: eggBox)
+    let sprite = MascotSprite.sprite(for: .ultimate)
+    let cellSize = box.width / CGFloat(MascotSprite.canvasCols)
+    let totalH = cellSize * CGFloat(MascotSprite.canvasRows)
+    let yBase = box.minY + (box.height - totalH) / 2
+    for (rowIdx, row) in sprite.enumerated() {
+        for (colIdx, ch) in row.enumerated() {
+            guard let c = iconPalette(ch) else { continue }
+            c.setFill()
+            let y = yBase + (CGFloat(MascotSprite.canvasRows) - 1 - CGFloat(rowIdx)) * cellSize
+            NSRect(
+                x: box.minX + CGFloat(colIdx) * cellSize,
+                y: y,
+                width: cellSize,
+                height: cellSize
+            ).fill()
+        }
+    }
 
     NSGraphicsContext.restoreGraphicsState()
     return bitmap.representation(using: .png, properties: [:])!
