@@ -72,12 +72,14 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func effectiveView(for snapshot: UsageSnapshot) -> DisplayView {
+        // Floor (not round) so we match Claude Code's `/usage` display — they show
+        // "20%" for any utilization in [20.0, 21.0), and we should too.
         if let api = snapshot.apiUsage {
             let pct = api.fiveHour.utilization
             let remaining = api.fiveHour.remaining()
             return DisplayView(
                 fraction: pct / 100,
-                percentInt: Int(pct.rounded()),
+                percentInt: max(0, Int(pct)),
                 remaining: remaining,
                 hasActiveUsage: pct > 0 || (remaining ?? 0) > 0,
                 source: .api
@@ -87,7 +89,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             let fraction = session.usageFraction(budgetUSD: budgetUSD)
             return DisplayView(
                 fraction: fraction,
-                percentInt: Int((fraction * 100).rounded()),
+                percentInt: max(0, Int(fraction * 100)),
                 remaining: displayedRemaining(for: session),
                 hasActiveUsage: true,
                 source: .jsonl
