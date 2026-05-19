@@ -1,0 +1,47 @@
+name: Release
+
+# Triggered by pushing a tag like `v0.1.0`. Builds the .app on a macOS runner,
+# zips it, and uploads to a GitHub Release with the same tag. The release is
+# the asset users curl down via scripts/install-from-release.sh.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to attach the build to (e.g. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # needed by softprops/action-gh-release to create/update releases
+
+jobs:
+  build-and-release:
+    # macos-15 ships Xcode 16 / Swift 6 by default, which matches our Package.swift.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build & package .app
+        run: ./scripts/package-app.sh
+
+      - name: Ditto-zip the .app (preserves bundle metadata)
+        run: ditto -c -k --keepParent .build/release/ClaudeUsageBot.app .build/release/ClaudeUsageBot.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: .build/release/ClaudeUsageBot.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
