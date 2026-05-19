@@ -34,7 +34,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         overlay = OverlayController()
-        overlay.onMascotClick = { [weak self] in self?.poller.refreshNow() }
+        overlay.onMascotClick = { [weak self] in self?.poller.refreshFromClick() }
         overlay.menuProvider = { [weak self] in self?.buildMenu() }
         // Placeholder until the first snapshot lands.
         overlay.showBubble("…", autoHideAfter: nil)
@@ -47,23 +47,67 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleSnapshot(_ snapshot: UsageSnapshot) {
-        let fraction = snapshot.session?.usageFraction(budgetUSD: budgetUSD) ?? 0
+        let view = effectiveView(for: snapshot)
         let stage = EvolutionStage.stage(
-            forFraction: fraction,
-            hasActiveSession: snapshot.session != nil
+            forFraction: view.fraction,
+            hasActiveSession: view.hasActiveUsage
         )
         overlay.updateStage(stage)
         // Bubble is always visible — every refresh just updates its text in place.
-        overlay.showBubble(bubbleText(for: snapshot), autoHideAfter: nil)
+        overlay.showBubble(bubbleText(for: view), autoHideAfter: nil)
         rebuildStatusMenu()
     }
 
-    private func bubbleText(for snapshot: UsageSnapshot) -> String {
-        guard let session = snapshot.session else {
-            return "활성 세션 없음"
+    /// Resolved view-model for a snapshot. Prefers the Anthropic API response when
+    /// available so the bubble matches Claude Code's `/usage` exactly; falls back to
+    /// JSONL-derived cost ÷ budget math.
+    private struct DisplayView {
+        let fraction: Double
+        let percentInt: Int
+        let remaining: TimeInterval?
+        let hasActiveUsage: Bool
+        let source: Source
+
+        enum Source { case api, jsonl, none }
+    }
+
+    private func effectiveView(for snapshot: UsageSnapshot) -> DisplayView {
+        // Floor (not round) so we match Claude Code's `/usage` display — they show
+        // "20%" for any utilization in [20.0, 21.0), and we should too.
+        if let api = snapshot.apiUsage {
+            let pct = api.fiveHour.utilization
+            let remaining = api.fiveHour.remaining()
+            return DisplayView(
+                fraction: pct / 100,
+                percentInt: max(0, Int(pct)),
+                remaining: remaining,
+                hasActiveUsage: pct > 0 || (remaining ?? 0) > 0,
+                source: .api
+            )
         }
-        let pct = Int((session.usageFraction(budgetUSD: budgetUSD) * 100).rounded())
-        return "\(pct)%  ·  \(formatRemaining(displayedRemaining(for: session)))"
+        if let session = snapshot.session {
+            let fraction = session.usageFraction(budgetUSD: budgetUSD)
+            return DisplayView(
+                fraction: fraction,
+                percentInt: max(0, Int(fraction * 100)),
+                remaining: displayedRemaining(for: session),
+                hasActiveUsage: true,
+                source: .jsonl
+            )
+        }
+        return DisplayView(fraction: 0, percentInt: 0, remaining: nil, hasActiveUsage: false, source: .none)
+    }
+
+    private func bubbleText(for view: DisplayView) -> String {
+        switch view.source {
+        case .none:
+            return "활성 세션 없음"
+        case .api, .jsonl:
+            guard let remaining = view.remaining else {
+                return "\(view.percentInt)%"
+            }
+            return "\(view.percentInt)%  ·  \(formatRemaining(remaining))"
+        }
     }
 
     /// Returns the remaining time we should display. Honors a manual override if it's
@@ -122,24 +166,31 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     fileprivate func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        if let session = poller.lastSnapshot?.session {
-            let fraction = session.usageFraction(budgetUSD: budgetUSD)
-            let pct = Int((fraction * 100).rounded())
-            let stage = EvolutionStage.stage(forFraction: fraction, hasActiveSession: true)
+        let snapshot = poller.lastSnapshot
+        let view = snapshot.map(effectiveView(for:))
+
+        if let view, view.hasActiveUsage {
+            let stage = EvolutionStage.stage(forFraction: view.fraction, hasActiveSession: true)
+            let remainingStr = view.remaining.map { " · \(formatRemaining($0))" } ?? ""
             let header = NSMenuItem(
-                title: "\(stage.label) · \(pct)% · \(formatRemaining(displayedRemaining(for: session)))",
+                title: "\(stage.label) · \(view.percentInt)%\(remainingStr)",
                 action: nil,
                 keyEquivalent: ""
             )
             header.isEnabled = false
             menu.addItem(header)
-            menu.addItem(.separator())
         } else {
             let none = NSMenuItem(title: "\(EvolutionStage.egg.label) · 활성 세션 없음", action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.addItem(none)
-            menu.addItem(.separator())
         }
+
+        if let snapshot {
+            let line = NSMenuItem(title: apiStatusLine(snapshot: snapshot, source: view?.source), action: nil, keyEquivalent: "")
+            line.isEnabled = false
+            menu.addItem(line)
+        }
+        menu.addItem(.separator())
 
         let refresh = NSMenuItem(title: "새로고침", action: #selector(refresh), keyEquivalent: "r")
         refresh.target = self
@@ -167,7 +218,13 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         calibrate.target = self
-        calibrate.isEnabled = (poller.lastSnapshot?.session?.usageUSD ?? 0) > 0
+        // Calibration only makes sense for the JSONL fallback — when we have the API
+        // response, the numbers are already authoritative.
+        let usingApi = view?.source == .api
+        calibrate.isEnabled = !usingApi && (poller.lastSnapshot?.session?.usageUSD ?? 0) > 0
+        if usingApi {
+            calibrate.title = "Claude Code 값에 맞춰 보정 (API 사용 중, 불필요)"
+        }
         menu.addItem(calibrate)
 
         // Budget submenu
@@ -195,8 +252,31 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         budgetUSD == floor(budgetUSD) ? "$\(Int(budgetUSD))" : String(format: "$%.2f", budgetUSD)
     }
 
+    /// Human-readable summary of the API fetch state. Tells the user at a glance whether
+    /// the numbers above are from Anthropic's API (accurate) or our JSONL estimate (approx).
+    private func apiStatusLine(snapshot: UsageSnapshot, source: DisplayView.Source?) -> String {
+        if source == .api, let api = snapshot.apiUsage {
+            let ago = Int(Date().timeIntervalSince(api.fetchedAt))
+            let agoStr = ago < 60 ? "\(max(0, ago))s 전" : "\(ago / 60)m 전"
+            return "데이터: Anthropic API (\(agoStr))"
+        }
+        switch snapshot.apiStatus {
+        case .idle:
+            return "데이터: JSONL 추정 (API 응답 대기)"
+        case .ok:
+            return "데이터: JSONL 추정"
+        case .rateLimited(let until):
+            let wait = max(0, Int(until.timeIntervalSinceNow))
+            return "데이터: JSONL 추정 (API 재시도 \(wait / 60)m \(wait % 60)s 후)"
+        case .unauthenticated:
+            return "데이터: JSONL 추정 (Claude Code 로그인 필요)"
+        case .error(let msg):
+            return "데이터: JSONL 추정 (API 오류: \(msg))"
+        }
+    }
+
     @objc private func refresh() {
-        poller.refreshNow()
+        poller.refreshFromClick()
     }
 
     @objc private func togglePause() {
