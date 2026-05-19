@@ -125,36 +125,40 @@ other closely until the next session boundary.
 
 ## Install
 
+### One-liner (no repo clone, no Swift toolchain)
+
 ```sh
-./scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/munolee/claude-usage-bot/main/scripts/install-from-release.sh | bash
 ```
 
-That script:
-1. Builds a release `.app` bundle.
-2. Stops any running instance.
-3. Copies it to `/Applications/ClaudeUsageBot.app`.
-4. Launches the new build.
+The script downloads the latest GitHub release, installs to
+`/Applications/ClaudeUsageBot.app`, strips the Gatekeeper quarantine flag
+(unsigned build), and launches the app. Pin a version with
+`VERSION=v0.1.0 bash …` if needed.
 
-Then run it from Spotlight (`⌘Space → ClaudeUsageBot`), Launchpad, or Finder.
 To auto-start at login: **System Settings → General → Login Items → +
 `/Applications/ClaudeUsageBot.app`**.
 
-> The app isn't code-signed. The first time you launch it, macOS may block it.
-> Right-click the .app in Finder → **Open** to bypass Gatekeeper once.
+### First-run permission prompt
 
-### Run from source (no install)
+The app reads Claude Code's OAuth token from your macOS keychain to fetch
+usage from Anthropic directly. On first launch macOS will ask whether
+ClaudeUsageBot can read the `Claude Code-credentials` keychain item —
+choose **"Always Allow"**. If you dismiss it by accident, open
+**Keychain Access → login → Claude Code-credentials → Access Control**
+and add ClaudeUsageBot (or pick "Allow all applications").
+
+> The app isn't code-signed yet. macOS Sequoia may still warn the first
+> time — the install script removes the quarantine attribute so launches
+> succeed, but if you downloaded the `.zip` manually, run
+> `xattr -dr com.apple.quarantine /Applications/ClaudeUsageBot.app` once.
+
+### Build from source
 
 ```sh
-swift run claudeusagebot
-```
-
-Quit via the menu, or `Ctrl+C` if running from SwiftPM directly.
-
-### Build the bundle only
-
-```sh
-./scripts/package-app.sh
-open .build/release/ClaudeUsageBot.app
+./scripts/install.sh         # build + install to /Applications
+swift run claudeusagebot     # run without installing
+./scripts/package-app.sh     # build the .app bundle without copying
 ```
 
 ---
