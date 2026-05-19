@@ -60,7 +60,11 @@ final class UsagePoller {
 
     var onUpdate: ((UsageSnapshot) -> Void)?
 
-    init(interval: TimeInterval = 30, apiInterval: TimeInterval = 300, root: URL = UsageReader.defaultRoot) {
+    /// API cadence is short enough to keep the displayed utilization close to what
+    /// `/usage` reports on demand — the five-hour rolling window can drift by several
+    /// percentage points across a couple of minutes of heavy use — but long enough
+    /// that we don't pound the endpoint. 429 backoff kicks in if we still get throttled.
+    init(interval: TimeInterval = 30, apiInterval: TimeInterval = 90, root: URL = UsageReader.defaultRoot) {
         self.interval = interval
         self.apiInterval = apiInterval
         self.apiBackoff = apiInterval
