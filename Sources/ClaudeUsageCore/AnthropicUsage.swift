@@ -125,14 +125,21 @@ public actor AnthropicUsageClient {
         self.tokenProvider = tokenProvider
     }
 
-    public func fetch() async throws -> AnthropicUsage {
+    /// Fetch usage. Pass `usingToken` to skip the keychain read — useful when the caller
+    /// already obtained a token via `KeychainTokenReader` and wants to avoid triggering
+    /// the keychain ACL dialog a second time (which can hang on background threads).
+    public func fetch(usingToken explicit: String? = nil) async throws -> AnthropicUsage {
         let token: String
-        do {
-            token = try tokenProvider()
-        } catch KeychainTokenReader.Failure.notFound {
-            throw AnthropicUsageError.tokenUnavailable
-        } catch {
-            throw AnthropicUsageError.tokenUnavailable
+        if let explicit, !explicit.isEmpty {
+            token = explicit
+        } else {
+            do {
+                token = try tokenProvider()
+            } catch KeychainTokenReader.Failure.notFound {
+                throw AnthropicUsageError.tokenUnavailable
+            } catch {
+                throw AnthropicUsageError.tokenUnavailable
+            }
         }
 
         guard let url = URL(string: Self.endpointString) else {
