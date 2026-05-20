@@ -146,11 +146,21 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private static func makeStatusIcon() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: true) { _ in
+            // Egg silhouette: taller-than-wide oval, centered. Template images are
+            // alpha-only, so we draw the egg shape opaque and then punch the
+            // speckle holes with destinationOut — they become transparent dots
+            // that take the menu bar background, mirroring the egg sprite's
+            // asymmetric two-spot pattern.
             NSColor.black.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 2, y: 4, width: 14, height: 12)).fill()
-            NSColor.white.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 6, y: 8, width: 2.5, height: 2.5)).fill()
-            NSBezierPath(ovalIn: NSRect(x: 10, y: 8, width: 2.5, height: 2.5)).fill()
+            NSBezierPath(ovalIn: NSRect(x: 3, y: 1, width: 12, height: 16)).fill()
+            NSGraphicsContext.current?.compositingOperation = .destinationOut
+            // The context is y-flipped here, so smaller y = closer to the top.
+            // Small speckle, top-left.
+            NSBezierPath(ovalIn: NSRect(x: 5, y: 4, width: 2.5, height: 2.5)).fill()
+            // Big round speckle, bottom-left.
+            NSBezierPath(ovalIn: NSRect(x: 4.5, y: 8.5, width: 5, height: 5)).fill()
+            // Mid-large speckle, upper-right.
+            NSBezierPath(ovalIn: NSRect(x: 10.5, y: 6, width: 3.5, height: 3.5)).fill()
             return true
         }
         image.isTemplate = true
