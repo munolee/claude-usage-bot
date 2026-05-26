@@ -115,14 +115,34 @@ public actor AnthropicUsageClient {
     public static let anthropicVersion = "2023-06-01"
 
     private let session: URLSession
-    private let tokenProvider: @Sendable () throws -> String
+    private let credentialsProvider: @Sendable () throws -> KeychainCredentials
+
+    /// Cached credentials so we don't re-enter the keychain (and trigger an ACL dialog)
+    /// on every 90s fetch. We invalidate it five minutes before the stored expiry.
+    private var cached: KeychainCredentials?
+    private static let expirySafetyMargin: TimeInterval = 300
 
     public init(
         session: URLSession = .shared,
-        tokenProvider: @escaping @Sendable () throws -> String = { try KeychainTokenReader.readClaudeAccessToken() }
+        credentialsProvider: @escaping @Sendable () throws -> KeychainCredentials = { try KeychainTokenReader.readClaudeCredentials() }
     ) {
         self.session = session
-        self.tokenProvider = tokenProvider
+        self.credentialsProvider = credentialsProvider
+    }
+
+    /// Manually flush the cached token. Use this when authentication fails so the next
+    /// fetch re-reads the keychain (Claude Code's daemon may have rotated the token).
+    public func invalidateTokenCache() {
+        cached = nil
+    }
+
+    private func currentToken() throws -> String {
+        if let cached, cached.expiresAt.map({ $0.timeIntervalSinceNow > Self.expirySafetyMargin }) ?? false {
+            return cached.accessToken
+        }
+        let creds = try credentialsProvider()
+        cached = creds
+        return creds.accessToken
     }
 
     /// Fetch usage. Pass `usingToken` to skip the keychain read — useful when the caller
@@ -132,9 +152,12 @@ public actor AnthropicUsageClient {
         let token: String
         if let explicit, !explicit.isEmpty {
             token = explicit
+            // The explicit token came straight from the keychain — refresh our cache so
+            // the next no-arg fetch reuses it instead of prompting again.
+            cached = KeychainCredentials(accessToken: explicit, expiresAt: cached?.expiresAt)
         } else {
             do {
-                token = try tokenProvider()
+                token = try currentToken()
             } catch KeychainTokenReader.Failure.notFound {
                 throw AnthropicUsageError.tokenUnavailable
             } catch {
@@ -171,6 +194,9 @@ public actor AnthropicUsageClient {
                 throw AnthropicUsageError.decoding(String(describing: error))
             }
         case 401, 403:
+            // Cached token may be stale (Claude Code rotated it). Drop the cache so the
+            // next attempt re-reads the keychain.
+            cached = nil
             throw AnthropicUsageError.authenticationFailed
         case 429:
             let retry = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
