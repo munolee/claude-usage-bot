@@ -144,23 +144,52 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private static func makeStatusIcon() -> NSImage {
-        let size = NSSize(width: 18, height: 18)
+        // Draw the actual MascotSprite.egg pixel grid so the menu bar icon matches
+        // the live mascot exactly — same shell silhouette, same speckle placement.
+        // The image stays a template ('W' = opaque body, 's' = destinationOut hole),
+        // so macOS still re-tints it for light/dark menu bars.
+        let cellSize: CGFloat = 1.375
+        let cols = CGFloat(MascotSprite.canvasCols)
+        let rows = CGFloat(MascotSprite.canvasRows)
+        let canvasSide: CGFloat = 22
+        let size = NSSize(width: canvasSide, height: canvasSide)
+        let xOffset = (canvasSide - cols * cellSize) / 2
+        let yOffset = (canvasSide - rows * cellSize) / 2
+
         let image = NSImage(size: size, flipped: true) { _ in
-            // Egg silhouette: taller-than-wide oval, centered. Template images are
-            // alpha-only, so we draw the egg shape opaque and then punch the
-            // speckle holes with destinationOut — they become transparent dots
-            // that take the menu bar background, mirroring the egg sprite's
-            // asymmetric two-spot pattern.
+            let ctx = NSGraphicsContext.current
+            ctx?.cgContext.setShouldAntialias(false)
+            ctx?.cgContext.interpolationQuality = .none
+
+            let sprite = MascotSprite.sprite(for: .egg)
+
+            // Body pass: every 'W' cell becomes an opaque pixel.
             NSColor.black.setFill()
-            NSBezierPath(ovalIn: NSRect(x: 3, y: 1, width: 12, height: 16)).fill()
-            NSGraphicsContext.current?.compositingOperation = .destinationOut
-            // The context is y-flipped here, so smaller y = closer to the top.
-            // Small speckle, top-left.
-            NSBezierPath(ovalIn: NSRect(x: 5, y: 4, width: 2.5, height: 2.5)).fill()
-            // Big round speckle, bottom-left.
-            NSBezierPath(ovalIn: NSRect(x: 4.5, y: 8.5, width: 5, height: 5)).fill()
-            // Mid-large speckle, upper-right.
-            NSBezierPath(ovalIn: NSRect(x: 10.5, y: 6, width: 3.5, height: 3.5)).fill()
+            for (rowIdx, row) in sprite.enumerated() {
+                for (colIdx, ch) in row.enumerated() where ch == "W" {
+                    NSRect(
+                        x: xOffset + CGFloat(colIdx) * cellSize,
+                        y: yOffset + CGFloat(rowIdx) * cellSize,
+                        width: cellSize,
+                        height: cellSize
+                    ).fill()
+                }
+            }
+
+            // Speckle pass: every 's' cell is punched back out so the menu bar
+            // background shows through, matching the egg sprite's two-tone look.
+            ctx?.compositingOperation = .destinationOut
+            for (rowIdx, row) in sprite.enumerated() {
+                for (colIdx, ch) in row.enumerated() where ch == "s" {
+                    NSRect(
+                        x: xOffset + CGFloat(colIdx) * cellSize,
+                        y: yOffset + CGFloat(rowIdx) * cellSize,
+                        width: cellSize,
+                        height: cellSize
+                    ).fill()
+                }
+            }
+
             return true
         }
         image.isTemplate = true
