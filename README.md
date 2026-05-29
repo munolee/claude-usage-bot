@@ -168,6 +168,25 @@ keychain dialog. If you dismiss it by accident, open
 **Keychain Access → login → Claude Code-credentials → Access Control**
 and add ClaudeUsageBot (or pick "Allow all applications").
 
+### Keychain dialog keeps reappearing? Make it stop for good
+
+`Always Allow` is bound to a specific keychain *item*. Claude Code's
+daemon rotates the `Claude Code-credentials` item every few hours, and
+each rotation wipes the ACL you set — so the dialog comes back every
+~8 hours even after you click `Always Allow`. The app caches the token
+to make this rare, but only one setting kills it completely:
+
+1. Open **Keychain Access** → left sidebar **`login`**
+2. Search `Claude Code-credentials` → double-click the entry
+3. Switch to the **`Access Control`** tab
+4. Pick the radio **`Allow all applications to access this item`**
+5. **Save Changes** → enter your account password once
+
+After this the dialog never appears again, regardless of how often
+Claude Code rotates the token. Security note: this only loosens access
+*within* your already-locked login keychain — anyone who could already
+prompt the dialog had to be signed into your user account anyway.
+
 ### Build from source
 
 ```sh
