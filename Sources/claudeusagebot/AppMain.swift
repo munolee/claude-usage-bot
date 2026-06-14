@@ -336,7 +336,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func requestClaudeLogin() {
         NSApp.activate(ignoringOtherApps: true)
         do {
-            let token = try KeychainTokenReader.readClaudeAccessToken()
+            let creds = try KeychainTokenReader.readClaudeCredentials()
+            let token = creds.accessToken
+            // Persist into our own keychain item so subsequent launches read from the
+            // cache (no ACL dialog) instead of Claude Code's rotating item.
+            KeychainTokenReader.writeOwnCache(creds)
             let alert = NSAlert()
             alert.messageText = "Claude Code에 연결되었습니다"
             alert.informativeText = "키체인에서 토큰을 읽어왔습니다. 곧 Anthropic API에서 정확한 사용량을 가져옵니다."

@@ -124,7 +124,14 @@ public actor AnthropicUsageClient {
 
     public init(
         session: URLSession = .shared,
-        credentialsProvider: @escaping @Sendable () throws -> KeychainCredentials = { try KeychainTokenReader.readClaudeCredentials() }
+        credentialsProvider: @escaping @Sendable () throws -> KeychainCredentials = {
+            // Prefer the app-owned cache (never prompts); only touch Claude Code's
+            // item when the cache is missing or stale.
+            if let creds = KeychainTokenReader.cachedOrFreshCredentials() {
+                return creds
+            }
+            return try KeychainTokenReader.readClaudeCredentials()
+        }
     ) {
         self.session = session
         self.credentialsProvider = credentialsProvider
