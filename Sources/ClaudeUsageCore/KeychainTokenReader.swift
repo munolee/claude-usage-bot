@@ -128,8 +128,15 @@ public enum KeychainTokenReader {
         return KeychainCredentials(accessToken: token, expiresAt: exp)
     }
 
-    /// Writes/updates the app-owned cache item. Stamps a default expiry when the source
-    /// has none so we still rotate eventually.
+    /// Writes the app-owned cache item with an "allow all applications" ACL.
+    ///
+    /// The default ACL macOS attaches to a self-created item is bound to the creating
+    /// app's signature (cdhash for ad-hoc builds). Since each local rebuild changes the
+    /// cdhash, the next build counts as a "different app" and gets prompted. Creating
+    /// the item with an allow-all ACL removes that per-signature gate entirely, so the
+    /// cache never prompts regardless of how the app was signed or rebuilt. The token
+    /// stays encrypted at rest in the keychain — this only widens *which* local apps may
+    /// read our own copy, the same posture as Keychain Access's "Allow all applications".
     public static func writeOwnCache(_ creds: KeychainCredentials) {
         let expiry = creds.expiresAt ?? Date().addingTimeInterval(defaultCacheTTL)
         let payload: [String: Any] = [
@@ -138,22 +145,41 @@ public enum KeychainTokenReader {
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
 
-        let match: [String: Any] = [
+        // Recreate the item so the allow-all ACL applies even to a previously-created
+        // (signature-bound) cache item from an older build.
+        let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: cacheService,
             kSecAttrAccount as String: cacheAccount
         ]
-        let update: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        let status = SecItemUpdate(match as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var add = match
-            add[kSecValueData as String] = data
+        SecItemDelete(base as CFDictionary)
+
+        var add = base
+        add[kSecValueData as String] = data
+        if let access = allowAllAccess() {
+            // kSecAttrAccess (legacy ACL) is mutually exclusive with kSecAttrAccessible.
+            add[kSecAttrAccess as String] = access
+        } else {
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            SecItemAdd(add as CFDictionary, nil)
         }
+        SecItemAdd(add as CFDictionary, nil)
+    }
+
+    /// Builds a SecAccess that lets any application read the item without a prompt —
+    /// the programmatic equivalent of "Allow all applications to access this item".
+    private static func allowAllAccess() -> SecAccess? {
+        var access: SecAccess?
+        guard SecAccessCreate("ClaudeUsageBot token cache" as CFString, [] as CFArray, &access) == errSecSuccess,
+              let access else { return nil }
+        var aclListCF: CFArray?
+        guard SecAccessCopyACLList(access, &aclListCF) == errSecSuccess,
+              let aclList = aclListCF as? [SecACL] else { return access }
+        for acl in aclList {
+            // nil trusted-application list = any app may access; empty prompt selector
+            // = no confirmation dialog.
+            SecACLSetContents(acl, nil, "" as CFString, SecKeychainPromptSelector(rawValue: 0))
+        }
+        return access
     }
 
     /// Claude Code stores expiresAt in a few flavors across versions; accept all of them.
